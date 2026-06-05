@@ -1,0 +1,18 @@
+[
+  {
+    "name": "New Project Introduction",
+    "body": "Hi {{first_name}},\n\nI noticed you were exploring premium villa opportunities in Whitefield.\n\nWe recently launched a new project that may align with your requirements.\n\nWould you be interested in a quick discussion?"
+  },
+  {
+    "name": "Site Visit Follow Up",
+    "body": "Hi {{first_name}},\n\nThank you for visiting our project last week. It was a pleasure showing you around.\n\nDo let me know if you'd like to revisit or discuss the pricing options for {{company}}."
+  },
+  {
+    "name": "Investor Opportunity",
+    "body": "Hello {{full_name}},\n\nA new commercial investment opportunity has opened up that fits the profile we discussed.\n\nExpected returns look strong. Shall I share the detailed brochure?"
+  },
+  {
+    "name": "Referral Thank You",
+    "body": "Hi {{first_name}},\n\nThank you for the referrals you've sent our way. They mean a lot.\n\nIf any of your contacts are looking to buy or invest, I'd be glad to help them personally."
+  }
+]

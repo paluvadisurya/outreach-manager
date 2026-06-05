@@ -1,0 +1,105 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Kumar;Ramesh;;;
+FN:Ramesh Kumar
+TEL;TYPE=CELL:+91 98765 43210
+EMAIL:ramesh.kumar@example.com
+ORG:Kumar Estates
+TITLE:Director
+NOTE:Exploring premium villas in Whitefield
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Sharma;Anita;;;
+FN:Anita Sharma
+TEL;TYPE=CELL:9886077665
+ORG:Sharma Investments
+TITLE:Investor
+NOTE:Looking for commercial property near Sarjapur
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Reddy;Suresh;;;
+FN:Suresh Reddy
+TEL:91-99001-22334
+EMAIL:suresh@buildwell.in
+ORG:Buildwell Constructions
+TITLE:Builder
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Iyer;Priya;;;
+FN:Priya Iyer
+TEL;TYPE=CELL:+919900112233
+EMAIL:priya.iyer@example.com
+TITLE:Architect
+NOTE:Referral partner, North Bangalore
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Nair;Vivek;;;
+FN:Vivek Nair
+TEL;TYPE=CELL:098455 66778
+ORG:Nair Realty
+NOTE:Hot lead, ready to buy apartment in Whitefield
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Gupta;Meena;;;
+FN:Meena Gupta
+TEL:+91 80 4123 4567
+EMAIL:meena.gupta@example.com
+ORG:Gupta Holdings
+TITLE:Investor
+NOTE:Luxury buyer, villa interest
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Kumar;Ramesh;;;
+FN:Ramesh Kumar
+TEL;TYPE=CELL:+91 98765 43210
+EMAIL:ramesh.kumar@kumarestates.com
+ORG:Kumar Estates
+TITLE:Managing Director
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:DSouza;Alan;;;
+FN:Alan DSouza
+TEL;TYPE=CELL:+91 90080 70060
+ORG:Coastal Properties
+TITLE:Broker
+NOTE:Site visit completed, Sarjapur project
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Bhat;Lakshmi;;;
+FN:Lakshmi Bhat
+TEL;TYPE=CELL:+91 97400 11220
+EMAIL:lakshmi.bhat@example.com
+TITLE:Past client
+NOTE:Bought apartment 2023, warm lead for upgrade
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Verma;Rohit;;;
+FN:Rohit Verma
+TEL;TYPE=CELL:+91 98801 23456
+ORG:Verma Group
+TITLE:Commercial investor
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;;;;
+FN:No Number Lead
+EMAIL:nonumber@example.com
+NOTE:This record has no phone and must be skipped on import
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pillai;Deepa;;;
+FN:Deepa Pillai
+TEL;TYPE=CELL:+91 98860 77665
+EMAIL:deepa.pillai@example.com
+NOTE:Shares Anita's number — should merge by phone on import
+END:VCARD

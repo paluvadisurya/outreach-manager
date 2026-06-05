@@ -1,0 +1,114 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@layer base {
+  :root {
+    /* Soft, airy light theme with pastel accents and high text contrast. */
+    --background: 240 30% 99%;
+    --foreground: 224 30% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 30% 16%;
+
+    /* Primary: a confident, slightly desaturated emerald. */
+    --primary: 158 64% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 32% 96%;
+    --secondary-foreground: 224 25% 27%;
+
+    --muted: 225 30% 96%;
+    --muted-foreground: 222 12% 46%;
+
+    /* Accent: pastel mint used for soft highlights and selected states. */
+    --accent: 158 55% 94%;
+    --accent-foreground: 160 60% 26%;
+
+    --success: 158 64% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --destructive: 354 70% 54%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 225 25% 91%;
+    --input: 225 25% 89%;
+    --ring: 158 64% 42%;
+
+    --radius: 1rem;
+
+    /* Ambient page wash — soft pastel gradient behind everything. */
+    --wash-1: 250 90% 97%;
+    --wash-2: 165 70% 96%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-color: hsl(var(--background));
+    -webkit-tap-highlight-color: transparent;
+    /* Improves tap responsiveness and avoids the 300ms delay on touch. */
+    touch-action: manipulation;
+  }
+
+  /*
+   * Ambient pastel wash rendered as a fixed, non-interactive layer behind all
+   * content. Using a fixed pseudo-element (instead of `background-attachment:
+   * fixed`, which iOS Safari handles badly and can make the page unresponsive
+   * to touch) keeps the gradient anchored without ever intercepting taps.
+   */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(
+        1200px 600px at 100% -10%,
+        hsl(var(--wash-1) / 0.7),
+        transparent 60%
+      ),
+      radial-gradient(
+        1000px 600px at -10% 0%,
+        hsl(var(--wash-2) / 0.6),
+        transparent 55%
+      );
+  }
+
+  /* Prevent iOS Safari from zooming on input focus (font-size >= 16px). */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+@utility glass {
+  background-color: hsl(var(--card) / 0.9);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
