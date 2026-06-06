@@ -1,7 +1,5 @@
-"use client";
-
-import { CategoriesManager } from "@/features/categories/components/CategoriesManager";
+import { redirect } from "next/navigation";
 
 export default function CategoriesPage() {
-  return <CategoriesManager />;
+  redirect("/people");
 }

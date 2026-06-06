@@ -141,8 +141,95 @@ describe("end-to-end outreach workflow", () => {
       contactIds: [contacts[0]!.id],
     });
     expect(campaign.total).toBe(1);
-    expect(campaign.categoryId).toBe("");
+    expect(campaign.categoryIds).toEqual([]);
+    expect(campaign.contactIds).toEqual([contacts[0]!.id]);
     expect(campaign.sourceLabel).toContain("selected");
+  });
+
+  it("unions contacts across multiple source categories (de-duplicated)", async () => {
+    await importVcf(MULTI_FILE_A);
+    await importVcf(MULTI_FILE_B);
+    const contacts = await contactsRepo.all(); // Ramesh, Anita, Suresh
+    const a = await categoriesRepo.create("Group A");
+    const b = await categoriesRepo.create("Group B");
+    // Ramesh is in both groups; Anita only in A; Suresh only in B.
+    const ramesh = contacts.find((c) => c.fullName === "Ramesh Kumar")!;
+    const anita = contacts.find((c) => c.fullName === "Anita Sharma")!;
+    const suresh = contacts.find((c) => c.fullName === "Suresh Reddy")!;
+    await contactsRepo.addToCategory([ramesh.id, anita.id], a.id);
+    await contactsRepo.addToCategory([ramesh.id, suresh.id], b.id);
+
+    const template = await templatesRepo.create("T", "Hi {{first_name}}");
+    const campaign = await campaignsRepo.create({
+      name: "Both groups",
+      templateIds: [template.id],
+      primaryTemplateId: template.id,
+      categoryIds: [a.id, b.id],
+    });
+    // Union of {Ramesh, Anita} ∪ {Ramesh, Suresh} = 3 distinct contacts.
+    expect(campaign.total).toBe(3);
+    expect(campaign.categoryIds).toEqual([a.id, b.id]);
+    const messages = await campaignsRepo.messagesFor(campaign.id);
+    expect(new Set(messages.map((m) => m.contactId)).size).toBe(3);
+    expect(messages.every((m) => m.templateId === template.id)).toBe(true);
+  });
+
+  it("re-renders one person's message from a different template", async () => {
+    await importVcf("BEGIN:VCARD\nFN:Ramesh Kumar\nTEL:9876543210\nEND:VCARD");
+    const contacts = await contactsRepo.all();
+    const cat = await categoriesRepo.create("Leads");
+    await contactsRepo.addToCategory([contacts[0]!.id], cat.id);
+    const t1 = await templatesRepo.create("Formal", "Dear {{first_name}}");
+    const t2 = await templatesRepo.create("Casual", "Yo {{first_name}}!");
+
+    const campaign = await campaignsRepo.create({
+      name: "Multi-template",
+      templateIds: [t1.id, t2.id],
+      primaryTemplateId: t1.id,
+      categoryId: cat.id,
+    });
+    let messages = await campaignsRepo.messagesFor(campaign.id);
+    expect(messages[0]!.message).toBe("Dear Ramesh");
+    expect(messages[0]!.templateId).toBe(t1.id);
+
+    await campaignsRepo.setMessageTemplate(campaign.id, contacts[0]!.id, t2.id);
+    messages = await campaignsRepo.messagesFor(campaign.id);
+    expect(messages[0]!.message).toBe("Yo Ramesh!");
+    expect(messages[0]!.templateId).toBe(t2.id);
+  });
+
+  it("refreshes a campaign's contacts against its source group", async () => {
+    await importVcf(MULTI_FILE_A); // Ramesh, Anita
+    const contacts = await contactsRepo.all();
+    const ramesh = contacts.find((c) => c.fullName === "Ramesh Kumar")!;
+    const anita = contacts.find((c) => c.fullName === "Anita Sharma")!;
+    const cat = await categoriesRepo.create("Refresh me");
+    await contactsRepo.addToCategory([ramesh.id], cat.id);
+    const template = await templatesRepo.create("T", "Hi {{first_name}}");
+
+    const campaign = await campaignsRepo.create({
+      name: "Refresh",
+      templateId: template.id,
+      categoryId: cat.id,
+    });
+    expect(campaign.total).toBe(1);
+
+    // Add Anita to the group, then refresh — she should be appended.
+    await contactsRepo.addToCategory([anita.id], cat.id);
+    let result = await campaignsRepo.refreshContacts(campaign.id);
+    expect(result).toEqual({ added: 1, removed: 0 });
+    let messages = await campaignsRepo.messagesFor(campaign.id);
+    expect(messages).toHaveLength(2);
+    expect(messages.map((m) => m.order)).toEqual([0, 1]);
+
+    // Remove Ramesh from the group, then refresh — he should be dropped.
+    await contactsRepo.removeFromCategory([ramesh.id], cat.id);
+    result = await campaignsRepo.refreshContacts(campaign.id);
+    expect(result).toEqual({ added: 0, removed: 1 });
+    messages = await campaignsRepo.messagesFor(campaign.id);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.contactId).toBe(anita.id);
+    expect((await campaignsRepo.get(campaign.id))!.total).toBe(1);
   });
 
   it("removes a deleted category from its member contacts", async () => {

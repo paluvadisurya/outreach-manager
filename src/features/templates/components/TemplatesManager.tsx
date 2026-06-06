@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { FileText, Plus, Sparkles } from "lucide-react";
+import { LayoutTemplate, Plus, Sparkles } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,7 @@ export function TemplatesManager() {
     <div className="flex flex-col">
       <AppHeader
         title="Templates"
+        icon={LayoutTemplate}
         subtitle={templates ? `${templates.length} reusable messages` : undefined}
         action={
           <Button size="icon" onClick={openNew} aria-label="New template">
@@ -50,7 +51,7 @@ export function TemplatesManager() {
 
       {templates && templates.length === 0 ? (
         <EmptyState
-          icon={FileText}
+          icon={LayoutTemplate}
           title="No templates yet"
           description="Write a reusable message with personalized fields like first name and company."
           action={
@@ -61,7 +62,7 @@ export function TemplatesManager() {
           }
         />
       ) : (
-        <div className="space-y-3 p-4 pb-32">
+        <div className="space-y-3 p-4 pb-nav">
           {templates?.map((t) => {
             const vars = extractVariables(t.body);
             const preview = t.body.replace(/\s+/g, " ").trim();
@@ -73,9 +74,10 @@ export function TemplatesManager() {
                 className="block w-full rounded-2xl border border-border/70 bg-card/80 p-4 text-left shadow-soft transition-all hover:shadow-card"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-secondary">
-                    <FileText className="h-5 w-5 text-primary" />
-                  </span>
+                  <LayoutTemplate
+                    className="h-6 w-6 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
                   <p className="min-w-0 flex-1 truncate font-semibold text-foreground">
                     {t.name}
                   </p>

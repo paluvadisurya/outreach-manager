@@ -2,21 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Tags, FileText, Send, type LucideIcon } from "lucide-react";
+import {
+  UsersRound,
+  LayoutTemplate,
+  Send,
+  Phone,
+  CalendarDays,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Tab {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Extra path prefixes that should also mark this tab active. */
+  match?: string[];
 }
 
-/** The four top-level destinations. This is the entire application surface. */
+/** The top-level destinations. This is the entire application surface. */
 const TABS: Tab[] = [
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/categories", label: "Categories", icon: Tags },
-  { href: "/templates", label: "Templates", icon: FileText },
+  { href: "/people", label: "People", icon: UsersRound, match: ["/contacts", "/categories"] },
+  { href: "/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/campaigns", label: "Campaigns", icon: Send },
+  { href: "/call", label: "Call", icon: Phone },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
 ];
 
 export function BottomNav() {
@@ -25,12 +35,14 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 mb-safe flex justify-center px-4 pb-4 pt-2"
+      className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pt-2 pb-[max(0.55rem,env(safe-area-inset-bottom))]"
     >
-      <ul className="flex w-full max-w-md items-stretch justify-between gap-1 rounded-[1.75rem] border border-border bg-card p-2 shadow-float">
+      <ul className="flex w-full max-w-lg items-stretch justify-between gap-0.5 rounded-[1.75rem] border border-border bg-card p-1.5 shadow-float">
         {TABS.map((tab) => {
-          const active =
-            pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+          const prefixes = [tab.href, ...(tab.match ?? [])];
+          const active = prefixes.some(
+            (p) => pathname === p || pathname.startsWith(`${p}/`),
+          );
           const Icon = tab.icon;
           return (
             <li key={tab.href} className="flex-1">
@@ -38,7 +50,7 @@ export function BottomNav() {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-[1.35rem] px-1 py-2 text-[11px] font-medium transition-all duration-200",
+                  "flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[1.35rem] px-1 py-2 text-[11px] font-medium leading-none transition-all duration-200",
                   active
                     ? "bg-accent text-accent-foreground shadow-soft"
                     : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
@@ -46,7 +58,7 @@ export function BottomNav() {
               >
                 <Icon
                   className={cn(
-                    "h-[22px] w-[22px] transition-transform",
+                    "h-6 w-6 transition-transform",
                     active ? "scale-110 stroke-[2.4]" : "stroke-2",
                   )}
                   aria-hidden

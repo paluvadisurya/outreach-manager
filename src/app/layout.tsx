@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
+import { SectionThemeController } from "@/components/layout/SectionThemeController";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -46,6 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="font-sans">
+        <SectionThemeController />
         <div className="mx-auto min-h-dvh max-w-lg">{children}</div>
         <ServiceWorkerRegistrar />
       </body>

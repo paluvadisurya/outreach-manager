@@ -14,6 +14,7 @@ function msg(order: number, status: MessageStatus): CampaignMessage {
     contactName: `Contact ${order}`,
     phone: `+91${order}`,
     message: "Hi",
+    templateId: "t",
     status,
     order,
     updatedAt: 0,
