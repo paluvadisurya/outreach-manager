@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type {
   AppSettings,
+  CallEntry,
   Campaign,
   CampaignMessage,
   Category,
@@ -27,6 +28,7 @@ export class OutreachDB extends Dexie {
   campaigns!: Table<Campaign, string>;
   campaignMessages!: Table<CampaignMessage, string>;
   settings!: Table<SettingsRecord, string>;
+  calls!: Table<CallEntry, string>;
 
   constructor() {
     super("outreach-manager");
@@ -42,6 +44,38 @@ export class OutreachDB extends Dexie {
     });
     this.version(2).stores({
       settings: "id",
+    });
+    this.version(3).stores({
+      // Call list. Keyed by contactId (one entry per contact). `nextCallAt` is
+      // indexed so the Upcoming agenda can range-scan scheduled calls.
+      calls: "id, outcome, nextCallAt, updatedAt",
+    });
+    this.version(4).stores({
+      // `updatedAt` is indexed so the backup signature can range-scan for the
+      // newest mutation (computeSignature orders campaignMessages by updatedAt).
+      campaignMessages: "id, campaignId, status, updatedAt, [campaignId+order]",
+    });
+    // v5 — campaigns gained multiple templates + multiple source categories, and
+    // each message records which template rendered it. No index changes; just
+    // backfill the new array fields from the old singular ones so existing data
+    // keeps working.
+    this.version(5).upgrade(async (tx) => {
+      const campaigns = tx.table<Campaign, string>("campaigns");
+      const messages = tx.table<CampaignMessage, string>("campaignMessages");
+      const templateByCampaign = new Map<string, string>();
+      await campaigns.toCollection().modify((c) => {
+        const templateId = c.templateId ?? c.primaryTemplateId ?? "";
+        if (templateId) templateByCampaign.set(c.id, templateId);
+        if (!c.templateIds) c.templateIds = templateId ? [templateId] : [];
+        if (!c.primaryTemplateId) c.primaryTemplateId = templateId;
+        if (!c.categoryIds)
+          c.categoryIds = c.categoryId ? [c.categoryId] : [];
+        if (!c.contactIds) c.contactIds = [];
+      });
+      await messages.toCollection().modify((m) => {
+        if (!m.templateId)
+          m.templateId = templateByCampaign.get(m.campaignId) ?? "";
+      });
     });
   }
 }

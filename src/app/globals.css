@@ -39,6 +39,17 @@
     /* Ambient page wash — soft pastel gradient behind everything. */
     --wash-1: 250 90% 97%;
     --wash-2: 165 70% 96%;
+
+    /* Per-section identity colors (overridden per route by the theme
+       controller). Default to the Contacts/emerald section. Used for the header
+       icon bubble gradient. */
+    --section: 158 64% 40%;
+    --section-2: 168 70% 45%;
+
+    /* Clearance for the floating bottom nav, including the iOS home-indicator
+       safe area. Single source of truth for page bottom padding so content
+       never hides behind (or collides with) the nav. */
+    --bottom-nav-gap: calc(env(safe-area-inset-bottom) + 5.5rem);
   }
 
   * {
@@ -97,6 +108,10 @@
 
 @utility mb-safe {
   margin-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pb-nav {
+  padding-bottom: var(--bottom-nav-gap);
 }
 
 @utility glass {

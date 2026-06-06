@@ -59,17 +59,36 @@ export type CampaignStatus = "active" | "paused" | "completed";
 export interface Campaign {
   id: string;
   name: string;
-  /** Source category, or empty when built from an ad-hoc contact selection. */
-  categoryId: string;
+  /**
+   * Source categories the campaign draws from (a union). Empty when the campaign
+   * was built from an ad-hoc contact selection.
+   */
+  categoryIds: string[];
+  /**
+   * Remembered explicit selection (selection-based campaigns) so the contact set
+   * can be reconciled later via `refreshContacts`. Empty for category campaigns.
+   */
+  contactIds: string[];
   /** Human label for the contact source, shown in the UI. */
   sourceLabel: string;
-  templateId: string;
+  /** Every template attached to the campaign. */
+  templateIds: string[];
+  /** The default template — used for everyone unless overridden per message. */
+  primaryTemplateId: string;
   status: CampaignStatus;
   /** Index of the contact currently focused in the sending queue. */
   currentIndex: number;
   total: number;
   createdAt: number;
   updatedAt: number;
+
+  /**
+   * Legacy single-source / single-template fields. Retained only so the v5 Dexie
+   * upgrade and old-backup restores can backfill the new arrays. Never written by
+   * new code.
+   */
+  categoryId?: string;
+  templateId?: string;
 }
 
 export type MessageStatus =
@@ -95,11 +114,50 @@ export interface CampaignMessage {
   phone: string;
   /** Frozen, fully-rendered message. */
   message: string;
+  /** Which template rendered this message (a campaign may carry several). */
+  templateId: string;
   status: MessageStatus;
   /** Stable ordering within the campaign queue. */
   order: number;
   updatedAt: number;
 }
+
+/** The outcome of a single call attempt / the current state of a call entry. */
+export type CallOutcome = "pending" | "called" | "no_answer" | "skipped";
+
+/**
+ * A contact placed on the call list. There is at most one entry per contact
+ * (keyed by the contact id). It tracks the latest outcome, a lightweight attempt
+ * history, the campaigns linked for talking-point context, and an optional
+ * scheduled next call that can be mirrored into the device calendar via .ics.
+ */
+export interface CallEntry {
+  /** == contactId. One entry per contact. */
+  id: string;
+  contactId: string;
+  /** Campaigns linked to this contact for talking-point context. */
+  campaignIds: string[];
+  outcome: CallOutcome;
+  /** Number of actual call attempts (called / no_answer). */
+  attempts: number;
+  /** When the last outcome was logged. */
+  lastOutcomeAt?: number;
+  /** Scheduled next call (epoch ms), if any. */
+  nextCallAt?: number;
+  nextCallNote?: string;
+  notes?: string;
+  /** Append-only log of outcomes, newest last. */
+  history: { at: number; outcome: CallOutcome }[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Which WhatsApp app a send link should target. `business` and `personal` use the
+ * native URL schemes; `wa_me` uses the universal https://wa.me link (the safe
+ * fallback that works everywhere).
+ */
+export type WhatsAppApp = "business" | "personal" | "wa_me";
 
 /** User-configurable preferences, persisted locally. */
 export interface AppSettings {
@@ -111,11 +169,14 @@ export interface AppSettings {
   firstNameFirstWordOnly: boolean;
   /** Minimum length of the first word before the next word is appended. */
   firstNameMinLength: number;
+  /** Preferred WhatsApp app to open send links in. Defaults to Business. */
+  whatsappApp: WhatsAppApp;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   firstNameFirstWordOnly: true,
-  firstNameMinLength: 2,
+  firstNameMinLength: 3,
+  whatsappApp: "business",
 };
 
 /** A parsed VCF record before it is normalized into a Contact. */

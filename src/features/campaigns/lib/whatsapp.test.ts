@@ -13,4 +13,19 @@ describe("buildWaLink", () => {
     const link = buildWaLink("919876543210", "Line 1\nLine 2");
     expect(link).toContain("text=Line%201%0ALine%202");
   });
+
+  it("builds a WhatsApp Business scheme link", () => {
+    const link = buildWaLink("+91 98765 43210", "Hello", "business");
+    expect(link).toBe("whatsapp-business://send?phone=919876543210&text=Hello");
+  });
+
+  it("builds a personal WhatsApp scheme link", () => {
+    const link = buildWaLink("+91 98765 43210", "Hello", "personal");
+    expect(link).toBe("whatsapp://send?phone=919876543210&text=Hello");
+  });
+
+  it("falls back to wa.me for the wa_me option", () => {
+    const link = buildWaLink("919876543210", "Hello", "wa_me");
+    expect(link).toBe("https://wa.me/919876543210?text=Hello");
+  });
 });

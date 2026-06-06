@@ -21,8 +21,10 @@ export function generateCampaignMessages(
   campaignId: string,
   contacts: Contact[],
   templateBody: string,
+  templateId: string,
   now: number = Date.now(),
   settings: AppSettings = DEFAULT_SETTINGS,
+  startOrder: number = 0,
 ): CampaignMessage[] {
   return contacts.map((contact, index) => {
     const personalized = personalizeContact(contact, settings);
@@ -34,8 +36,9 @@ export function generateCampaignMessages(
       contactName: contact.fullName || contact.phone,
       phone: contact.phone,
       message: tidyMessage(text),
+      templateId,
       status: "pending" as MessageStatus,
-      order: index,
+      order: startOrder + index,
       updatedAt: now,
     };
   });

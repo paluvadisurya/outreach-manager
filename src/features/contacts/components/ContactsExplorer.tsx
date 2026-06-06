@@ -30,7 +30,7 @@ import { loadDemoData } from "@/lib/seed";
 
 const ROW_HEIGHT = 76;
 
-export function ContactsExplorer() {
+export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const contacts = useLiveQuery(() => contactsRepo.all(), []);
   const { query, setQuery, selected, toggle, setSelection, clear, isSelected } =
@@ -58,39 +58,54 @@ export function ContactsExplorer() {
   const loading = contacts === undefined;
 
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader
-        title="Contacts"
-        subtitle={
-          contacts ? `${contacts.length.toLocaleString()} total` : undefined
-        }
-        action={
-          <Button size="icon" onClick={() => setImportOpen(true)} aria-label="Import contacts">
-            <Upload className="h-5 w-5" />
-          </Button>
-        }
-      />
+    <div className={embedded ? "flex h-full min-h-0 flex-col" : "flex h-dvh flex-col"}>
+      {!embedded && (
+        <AppHeader
+          title="Contacts"
+          icon={Users}
+          subtitle={
+            contacts ? `${contacts.length.toLocaleString()} total` : undefined
+          }
+          action={
+            <Button size="icon" onClick={() => setImportOpen(true)} aria-label="Import contacts">
+              <Upload className="h-5 w-5" />
+            </Button>
+          }
+        />
+      )}
 
       {/* Search */}
-      <div className="border-b border-border/60 px-5 pb-3 pt-1">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, phone, company…"
-            className="pl-11 pr-11"
-            inputMode="search"
-          />
-          {searching && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+      <div className="border-b border-border/60 px-5 pb-3 pt-3">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, phone, company…"
+              className="pl-11 pr-11"
+              inputMode="search"
+            />
+            {searching && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {embedded && (
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              aria-label="Import contacts"
             >
-              <X className="h-4 w-4" />
-            </button>
+              <Upload className="h-5 w-5" />
+            </Button>
           )}
         </div>
 
@@ -146,7 +161,7 @@ export function ContactsExplorer() {
           />
         ) : (
           <VirtualList<Contact>
-            className="h-full px-3 pb-40 pt-1"
+            className="h-full px-3 pb-nav pt-1"
             items={filtered}
             itemHeight={ROW_HEIGHT}
             getKey={(c) => c.id}
@@ -161,9 +176,11 @@ export function ContactsExplorer() {
         )}
       </div>
 
-      {/* Floating selection action bar — sits just above the bottom nav */}
+      {/* Floating selection action bar — sits just above the bottom nav. The
+          offset matches the nav clearance (incl. the iOS safe-area inset) so it
+          never overlaps the nav on a real phone, only in desktop testing. */}
       {hasSelection && (
-        <div className="fixed inset-x-0 bottom-[104px] z-40 flex justify-center px-4">
+        <div className="fixed inset-x-0 bottom-[var(--bottom-nav-gap)] z-40 flex justify-center px-4">
           <div className="glass flex w-full max-w-md items-center gap-2 rounded-2xl border border-white/60 px-3 py-2 shadow-float animate-in slide-in-from-bottom-2">
             <button
               type="button"

@@ -22,6 +22,8 @@ import {
   clearAllData,
   clearAppCaches,
   countsOf,
+  computeSignature,
+  setLastBackup,
   type BackupCounts,
   type BackupData,
   type RestoreMode,
@@ -65,6 +67,8 @@ export function DataBackupSection() {
     setStatus(null);
     try {
       const c = await downloadBackup();
+      // Mark the data clean so the header Save button's dirty dot clears too.
+      setLastBackup(await computeSignature());
       setStatus({
         kind: "ok",
         text: `Saved ${c.contacts} contacts, ${c.categories} groups, ${c.templates} templates and ${c.campaigns} campaigns to a file.`,
@@ -120,7 +124,7 @@ export function DataBackupSection() {
       await clearAllData();
       await clearAppCaches();
       // Hard reload into a clean app.
-      window.location.href = "/contacts";
+      window.location.href = "/people";
     } catch (err) {
       setStatus({ kind: "err", text: errorText(err) });
       setBusy(null);
@@ -135,9 +139,7 @@ export function DataBackupSection() {
   return (
     <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
       <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
-          <Database className="h-5 w-5 text-primary" />
-        </span>
+        <Database className="h-5 w-5 text-muted-foreground" aria-hidden />
         <h2 className="font-bold text-foreground">Data &amp; backup</h2>
       </div>
 

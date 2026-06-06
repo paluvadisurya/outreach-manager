@@ -3,10 +3,19 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, UserRound, Phone, Minus, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  UserRound,
+  Phone,
+  Minus,
+  Plus,
+  MessageCircle,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import type { AppSettings } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import type { AppSettings, WhatsAppApp } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { settingsRepo } from "../lib/repository";
 import { deriveFirstName } from "@/features/contacts/lib/name";
@@ -21,6 +30,24 @@ export function SettingsManager() {
     void settingsRepo.update(patch);
 
   const examples = ["Ramesh Kumar", "K Ramesh", "Sai Krishna Reddy"];
+
+  const whatsappOptions: { value: WhatsAppApp; label: string; hint: string }[] = [
+    {
+      value: "business",
+      label: "WhatsApp Business",
+      hint: "Opens whatsapp-business:// — best if you message from Business.",
+    },
+    {
+      value: "personal",
+      label: "WhatsApp",
+      hint: "Opens the regular WhatsApp app (whatsapp://).",
+    },
+    {
+      value: "wa_me",
+      label: "Universal link (wa.me)",
+      hint: "Always works; lets the device pick the app.",
+    },
+  ];
 
   return (
     <div className="min-h-dvh">
@@ -43,9 +70,7 @@ export function SettingsManager() {
         {/* First name extraction */}
         <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
           <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
-              <UserRound className="h-5 w-5 text-primary" />
-            </span>
+            <UserRound className="h-5 w-5 text-muted-foreground" aria-hidden />
             <h2 className="font-bold text-foreground">First name</h2>
           </div>
 
@@ -100,15 +125,55 @@ export function SettingsManager() {
           </div>
         </section>
 
+        {/* WhatsApp app preference */}
+        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
+          <div className="mb-3 flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-muted-foreground" aria-hidden />
+            <h2 className="font-bold text-foreground">WhatsApp app</h2>
+          </div>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Which app the Send button opens by default. The send screen always shows a
+            wa.me fallback link in case a chosen app isn&apos;t installed.
+          </p>
+          <div className="space-y-2">
+            {whatsappOptions.map((opt) => {
+              const selected = settings.whatsappApp === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => update({ whatsappApp: opt.value })}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
+                    selected
+                      ? "border-primary bg-accent"
+                      : "border-input bg-card hover:bg-secondary",
+                  )}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium text-foreground">
+                      {opt.label}
+                    </span>
+                    <span className="block text-sm text-muted-foreground">
+                      {opt.hint}
+                    </span>
+                  </span>
+                  {selected && (
+                    <Check className="h-5 w-5 shrink-0 text-primary" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Data, backup & fresh start */}
         <DataBackupSection />
 
         {/* Phone normalization (informational) */}
         <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
           <div className="mb-2 flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
-              <Phone className="h-5 w-5 text-primary" />
-            </span>
+            <Phone className="h-5 w-5 text-muted-foreground" aria-hidden />
             <h2 className="font-bold text-foreground">Phone numbers</h2>
           </div>
           <p className="text-sm leading-relaxed text-muted-foreground">

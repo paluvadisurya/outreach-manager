@@ -1,7 +1,5 @@
-"use client";
-
-import { ContactsExplorer } from "@/features/contacts/components/ContactsExplorer";
+import { redirect } from "next/navigation";
 
 export default function ContactsPage() {
-  return <ContactsExplorer />;
+  redirect("/people?view=contacts");
 }

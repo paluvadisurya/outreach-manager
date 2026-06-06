@@ -36,6 +36,7 @@ export function CampaignsManager() {
     <div className="flex flex-col">
       <AppHeader
         title="Campaigns"
+        icon={Send}
         action={
           <Button size="icon" onClick={() => setCreateOpen(true)} aria-label="New campaign">
             <Plus className="h-5 w-5" />
@@ -51,9 +52,8 @@ export function CampaignsManager() {
             onClick={() => router.push(`/campaigns/${resumable.campaign.id}`)}
             className="flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-accent p-4 text-left shadow-soft transition-all hover:shadow-card"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <Play className="h-5 w-5" />
-            </span>
+            <Play className="h-6 w-6 shrink-0 text-primary" aria-hidden />
+
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium text-accent-foreground">
                 Resume campaign
@@ -83,7 +83,7 @@ export function CampaignsManager() {
           }
         />
       ) : (
-        <ul className="space-y-3 p-4 pb-32">
+        <ul className="space-y-3 p-4 pb-nav">
           {data?.map(({ campaign, progress }) => (
             <li key={campaign.id}>
               <button
@@ -117,6 +117,33 @@ export function CampaignsManager() {
                     </span>
                     <span>{progress.percent}%</span>
                   </div>
+                  {/* Per-bucket breakdown so the user sees the outcome mix
+                      before opening the campaign. */}
+                  {(progress.sent > 0 ||
+                    progress.skipped > 0 ||
+                    progress.failed > 0 ||
+                    progress.needsReview > 0) && (
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-medium">
+                      {progress.sent > 0 && (
+                        <span className="text-primary">{progress.sent} sent</span>
+                      )}
+                      {progress.needsReview > 0 && (
+                        <span className="text-amber-600">
+                          {progress.needsReview} review
+                        </span>
+                      )}
+                      {progress.skipped > 0 && (
+                        <span className="text-muted-foreground">
+                          {progress.skipped} skipped
+                        </span>
+                      )}
+                      {progress.failed > 0 && (
+                        <span className="text-destructive">
+                          {progress.failed} failed
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </button>
             </li>

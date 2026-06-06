@@ -25,9 +25,13 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-accent to-secondary shadow-soft">
-        <Icon className="h-9 w-9 text-primary" strokeWidth={1.75} />
-      </div>
+      <Icon
+        className="mb-5 h-12 w-12"
+        strokeWidth={1.5}
+        style={{ color: "hsl(var(--section))" }}
+        aria-hidden
+      />
+
       <h3 className="text-lg font-bold text-foreground">{title}</h3>
       {description && (
         <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-muted-foreground">

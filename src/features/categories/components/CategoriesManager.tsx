@@ -8,10 +8,12 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { Category } from "@/lib/types";
 import { categoriesRepo } from "../lib/repository";
+import { CategoryEditSheet } from "./CategoryEditSheet";
 import { CampaignCreateSheet } from "@/features/campaigns/components/CampaignCreateSheet";
 
-export function CategoriesManager() {
+export function CategoriesManager({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const categories = useLiveQuery(() => categoriesRepo.all(), []);
   const counts = useLiveQuery(() => categoriesRepo.memberCounts(), []) ?? {};
@@ -20,6 +22,7 @@ export function CategoriesManager() {
   const [campaignCategoryId, setCampaignCategoryId] = React.useState<
     string | null
   >(null);
+  const [editing, setEditing] = React.useState<Category | null>(null);
 
   const create = async () => {
     const name = newName.trim();
@@ -39,13 +42,16 @@ export function CategoriesManager() {
   };
 
   return (
-    <div className="flex flex-col">
-      <AppHeader
-        title="Categories"
-        subtitle={categories ? `${categories.length} total` : undefined}
-      />
+    <div className="flex h-full min-h-0 flex-col">
+      {!embedded && (
+        <AppHeader
+          title="Categories"
+          icon={Tags}
+          subtitle={categories ? `${categories.length} total` : undefined}
+        />
+      )}
 
-      <div className="px-5 pb-3 pt-1">
+      <div className="px-5 pb-3 pt-3">
         <div className="flex gap-2">
           <Input
             value={newName}
@@ -59,6 +65,7 @@ export function CategoriesManager() {
         </div>
       </div>
 
+      <div className="flex-1 overflow-y-auto">
       {categories && categories.length === 0 ? (
         <EmptyState
           icon={Tags}
@@ -66,7 +73,7 @@ export function CategoriesManager() {
           description="Group prospects like Hot Leads, Villa Buyers or Whitefield Leads to target your outreach."
         />
       ) : (
-        <ul className="space-y-2 px-4 pb-32 pt-1">
+        <ul className="space-y-2 px-4 pb-nav pt-1">
           {categories?.map((c) => {
             const count = counts[c.id] ?? 0;
             return (
@@ -75,23 +82,23 @@ export function CategoriesManager() {
                 className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 shadow-soft"
               >
                 <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                  style={{ backgroundColor: `${c.color}1a` }}
+                  className="h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-inset ring-black/5"
+                  style={{ backgroundColor: c.color }}
                   aria-hidden
+                />
+                <button
+                  type="button"
+                  onClick={() => setEditing(c)}
+                  className="min-w-0 flex-1 text-left"
+                  aria-label={`Edit ${c.name}`}
                 >
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: c.color }}
-                  />
-                </span>
-                <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-foreground">
                     {c.name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {count.toLocaleString()} contact{count === 1 ? "" : "s"}
+                    {count.toLocaleString()} contact{count === 1 ? "" : "s"} · Edit
                   </p>
-                </div>
+                </button>
                 <Button
                   size="icon"
                   variant="ghost"
@@ -114,6 +121,12 @@ export function CategoriesManager() {
           })}
         </ul>
       )}
+      </div>
+
+      <CategoryEditSheet
+        category={editing}
+        onClose={() => setEditing(null)}
+      />
 
       <CampaignCreateSheet
         open={campaignCategoryId !== null}
