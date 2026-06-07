@@ -37,7 +37,7 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pt-2 pb-[max(0.55rem,env(safe-area-inset-bottom))]"
     >
-      <ul className="glass flex w-full max-w-lg items-stretch justify-between gap-0.5 rounded-[1.9rem] border border-white/60 p-1.5 shadow-float ring-1 ring-black/[0.03]">
+      <ul className="flex w-full max-w-lg items-stretch justify-between gap-0.5 rounded-[1.9rem] border border-hairline bg-card p-1.5 shadow-float ring-1 ring-black/[0.03]">
         {TABS.map((tab) => {
           const prefixes = [tab.href, ...(tab.match ?? [])];
           const active = prefixes.some(

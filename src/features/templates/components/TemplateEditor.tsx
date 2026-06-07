@@ -135,7 +135,7 @@ export function TemplateEditor({
         setNotice(null);
         haptic("success");
       } else {
-        setNotice("Clipboard is empty — copy the rephrased message first.");
+        setNotice("Clipboard is empty. Copy the rephrased message first.");
       }
     } catch {
       setNotice(

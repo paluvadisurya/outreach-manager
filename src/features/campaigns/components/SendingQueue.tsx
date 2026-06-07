@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   ArrowLeft,
@@ -9,12 +9,11 @@ import {
   ChevronRight,
   MessageCircle,
   Phone,
+  PhoneForwarded,
   Check,
   SkipForward,
   AlertTriangle,
   Eye,
-  Pause,
-  Play,
   RefreshCw,
   MoreVertical,
   Pencil,
@@ -30,6 +29,7 @@ import {
   CircleMinus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HapticButton } from "@/components/ui/haptic-button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -42,6 +42,7 @@ import { templatesRepo } from "@/features/templates/lib/repository";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { callsRepo } from "@/features/calls/lib/repository";
+import { eventsRepo } from "@/features/analytics/lib/repository";
 import { useSettings } from "@/features/settings/hooks/useSettings";
 import { campaignsRepo } from "../lib/repository";
 import { computeProgress, resumeIndex } from "../lib/progress";
@@ -57,6 +58,10 @@ const STATUS_META: Record<MessageStatus, { label: string; variant: "success" | "
 
 export function SendingQueue({ campaignId }: { campaignId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Deep-link target: jump the queue straight to this person on load (Req #4 —
+  // the round-trip back from the Call section's "Open in campaign").
+  const focusContactId = searchParams.get("contact");
   const settings = useSettings();
 
   const campaign = useLiveQuery(() => campaignsRepo.get(campaignId), [campaignId]);
@@ -106,13 +111,17 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     setReviewOpen(true);
   };
 
-  // On first load, resume exactly where the user left off.
+  // On first load, jump to a deep-linked contact if one was requested, else
+  // resume exactly where the user left off.
   React.useEffect(() => {
     if (!initialized.current && campaign && messages) {
       initialized.current = true;
-      setIndex(resumeIndex(messages, campaign.currentIndex));
+      const focused = focusContactId
+        ? messages.findIndex((m) => m.contactId === focusContactId)
+        : -1;
+      setIndex(focused !== -1 ? focused : resumeIndex(messages, campaign.currentIndex));
     }
-  }, [campaign, messages]);
+  }, [campaign, messages, focusContactId]);
 
   const persistIndex = React.useCallback(
     (next: number) => {
@@ -132,7 +141,16 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!messages) return;
     const current = messages[index];
     if (!current) return;
-    haptic(status === "sent" ? "success" : "light");
+    // The action buttons are HapticButtons, so the tap itself fires the tick.
+    // Record the outcome for cross-day analytics (only the meaningful, terminal
+    // states — pending/needs_review are working states, not activity).
+    if (status === "sent" || status === "skipped" || status === "failed") {
+      eventsRepo.log(`message_${status}`, {
+        ref: current.contactId,
+        campaignId,
+        templateId: current.templateId,
+      });
+    }
     await campaignsRepo.setMessageStatus(current.id, status);
 
     // Advance to the next message that still needs attention; if none remain
@@ -152,12 +170,36 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     await campaignsRepo.syncCompletion(campaignId);
   };
 
-  const togglePause = async () => {
-    if (!campaign) return;
-    await campaignsRepo.setStatus(
-      campaignId,
-      campaign.status === "paused" ? "active" : "paused",
-    );
+  // One-tap Refresh (Req #5): reconcile the contact set with its source AND
+  // re-render every message from the current templates/contact data/settings,
+  // keeping progress. Replaces the old Pause/Resume control. Confirmed because it
+  // rewrites stored message text and can add/remove people.
+  const [refreshing, setRefreshing] = React.useState(false);
+  const refreshAll = async () => {
+    if (refreshing) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Refresh this campaign? It pulls the latest contacts from the source and re-renders every message with the current templates. Your progress is kept.",
+      )
+    ) {
+      return;
+    }
+    setRefreshing(true);
+    haptic("light");
+    try {
+      const { added, removed } = await campaignsRepo.refreshContacts(campaignId);
+      await campaignsRepo.regenerate(campaignId);
+      if (typeof window !== "undefined") {
+        window.alert(
+          added === 0 && removed === 0
+            ? "Refreshed: messages re-rendered, contacts already up to date."
+            : `Refreshed: messages re-rendered, ${added} added, ${removed} removed.`,
+        );
+      }
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const regenerate = async () => {
@@ -178,7 +220,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (typeof window !== "undefined") {
       window.alert(
         added === 0 && removed === 0
-          ? "Already up to date — no contacts added or removed."
+          ? "Already up to date, no contacts added or removed."
           : `Contacts refreshed: ${added} added, ${removed} removed.`,
       );
     }
@@ -257,6 +299,27 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!cur) return;
     haptic("light");
     await callsRepo.addContacts([cur.contactId], [campaignId]);
+  };
+
+  // Jump from the campaign to this person's view in the Call section (Req #2).
+  // If they're not on the call list yet, ask before adding — then open them.
+  const viewInCallList = async () => {
+    if (!messages) return;
+    const cur = messages[Math.min(index, messages.length - 1)];
+    if (!cur) return;
+    if (!onCallList) {
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm(
+          `${cur.contactName} isn't on your call list yet. Add them and open their call view?`,
+        )
+      ) {
+        return;
+      }
+      await callsRepo.addContacts([cur.contactId], [campaignId]);
+    }
+    haptic("light");
+    router.push(`/call?contact=${encodeURIComponent(cur.contactId)}`);
   };
 
   // From the review list's remove options (Req 1): drop the person from this
@@ -356,7 +419,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   const waFallbackLink = buildWaLink(current.phone, current.message, "wa_me");
   const showFallback = settings.showWaMeFallback;
   const statusMeta = STATUS_META[current.status];
-  const paused = campaign.status === "paused";
   const isFinal =
     current.status === "sent" ||
     current.status === "skipped" ||
@@ -435,18 +497,15 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               {progress.processed} of {progress.total} done · {progress.percent}%
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={togglePause}>
-            {paused ? (
-              <>
-                <Play className="h-4 w-4" />
-                Resume
-              </>
-            ) : (
-              <>
-                <Pause className="h-4 w-4" />
-                Pause
-              </>
-            )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshAll}
+            disabled={refreshing}
+            aria-label="Refresh contacts and messages"
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            Refresh
           </Button>
           <Button
             variant="ghost"
@@ -587,59 +646,71 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         </div>
 
         {/* Tie messaging to the call list — drop this person onto it so their
-            message rides along as a talking point (Req 5). */}
-        <button
-          type="button"
-          onClick={addCurrentToCallList}
-          disabled={Boolean(onCallList)}
-          className={cn(
-            "mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold transition-colors",
-            onCallList
-              ? // Already added — muted, clearly a settled/done state.
-                "border-border/60 bg-secondary/40 text-muted-foreground"
-              : // Actionable — subtly highlighted so it stands apart from "added".
-                "border-primary/30 bg-accent/60 text-accent-foreground hover:bg-accent",
-          )}
-        >
-          {onCallList ? (
-            <>
-              <Check className="h-4 w-4 text-primary" />
-              On your call list
-            </>
-          ) : (
-            <>
-              <Phone className="h-4 w-4 text-primary" />
-              Add to call list
-            </>
-          )}
-        </button>
+            message rides along as a talking point (Req 5), and jump straight to
+            their call view (Req 2). */}
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={addCurrentToCallList}
+            disabled={Boolean(onCallList)}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold transition-colors",
+              onCallList
+                ? // Already added — muted, clearly a settled/done state.
+                  "border-border/60 bg-secondary/40 text-muted-foreground"
+                : // Actionable — subtly highlighted so it stands apart from "added".
+                  "border-primary/30 bg-accent/60 text-accent-foreground hover:bg-accent",
+            )}
+          >
+            {onCallList ? (
+              <>
+                <Check className="h-4 w-4 text-primary" />
+                On your call list
+              </>
+            ) : (
+              <>
+                <Phone className="h-4 w-4 text-primary" />
+                Add to call list
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={viewInCallList}
+            aria-label="Open this person's call view"
+            className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-hairline bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-soft transition-colors hover:bg-secondary active:scale-[0.99]"
+          >
+            <PhoneForwarded className="h-4 w-4 text-primary" />
+            Call view
+          </button>
+        </div>
 
         {/* Secondary marks — compact, one row, out of the primary thumb path */}
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <Button
+          <HapticButton
             variant="outline"
             className="h-14 flex-col gap-1 text-xs"
             onClick={() => mark("skipped")}
           >
             <SkipForward className="h-5 w-5" />
             Skip
-          </Button>
-          <Button
+          </HapticButton>
+          <HapticButton
             variant="outline"
             className="h-14 flex-col gap-1 text-xs"
             onClick={() => mark("needs_review")}
           >
             <Eye className="h-5 w-5" />
             Review
-          </Button>
-          <Button
+          </HapticButton>
+          <HapticButton
             variant="outline"
             className="h-14 flex-col gap-1 text-xs"
             onClick={() => mark("failed")}
           >
             <AlertTriangle className="h-5 w-5 text-destructive" />
             Failed
-          </Button>
+          </HapticButton>
         </div>
       </div>
 
@@ -672,19 +743,18 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
 
         {/* Two large primary actions — the core send loop */}
         <div className="grid grid-cols-2 gap-3">
-          <Button
+          <HapticButton
             className="h-14 w-full text-base"
             variant="outline"
-            onClick={() => {
-              haptic("light");
-              openWhatsApp(current.phone, current.message, settings.whatsappApp);
-            }}
+            onClick={() =>
+              openWhatsApp(current.phone, current.message, settings.whatsappApp)
+            }
           >
             <MessageCircle className="h-5 w-5 text-primary" />
             WhatsApp
-          </Button>
+          </HapticButton>
           {isFinal ? (
-            <Button
+            <HapticButton
               className="h-14 w-full text-base"
               variant="outline"
               onClick={resetCurrent}
@@ -692,16 +762,17 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             >
               <RotateCcw className="h-5 w-5" />
               {current.status === "sent" ? "Sent · Reset" : "Done · Reset"}
-            </Button>
+            </HapticButton>
           ) : (
-            <Button
+            <HapticButton
               className="h-14 w-full text-base"
+              haptic="success"
               onClick={() => mark("sent")}
               aria-label="Mark sent"
             >
               <Check className="h-6 w-6" />
               Mark Sent
-            </Button>
+            </HapticButton>
           )}
         </div>
 
@@ -768,7 +839,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                   className="flex flex-1 items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-foreground">
+                    <p className="font-semibold text-foreground line-clamp-2 [overflow-wrap:anywhere]">
                       {m.contactName}
                     </p>
                     <p className="truncate text-sm text-muted-foreground">
@@ -858,7 +929,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                 Regenerate messages
               </span>
               <span className="block text-sm text-muted-foreground">
-                Re-render text from the current template — progress kept.
+                Re-render text from the current template, progress kept.
               </span>
             </span>
           </button>

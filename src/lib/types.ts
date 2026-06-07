@@ -195,6 +195,43 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showWaMeFallback: false,
 };
 
+/**
+ * A lightweight, append-only activity event. Powers the Analytics dashboard's
+ * cross-day productivity views — the things that can't be reconstructed from the
+ * current state alone (e.g. a true "messages sent today" count that survives a
+ * campaign reset). Historical analytics is still *derived* from existing
+ * timestamps; this stream only captures go-forward activity.
+ */
+export type AppEventType =
+  | "message_sent"
+  | "message_skipped"
+  | "message_failed"
+  | "call_logged"
+  | "call_scheduled"
+  | "contact_imported"
+  | "contact_removed"
+  | "contact_kept"
+  | "campaign_created"
+  | "template_created";
+
+export interface AppEvent {
+  /** Unique id (uid()). */
+  id: string;
+  type: AppEventType;
+  /** When it happened (epoch ms). */
+  at: number;
+  /** Local midnight of `at` (epoch ms) — fast daily grouping/index. */
+  day: number;
+  /** Primary subject id — contactId / campaignId / templateId, as relevant. */
+  ref?: string;
+  /** Campaign this event relates to, for campaign/template filtering. */
+  campaignId?: string;
+  /** Template this event relates to, for template filtering. */
+  templateId?: string;
+  /** For `call_logged`: the recorded outcome. */
+  outcome?: string;
+}
+
 /** A parsed VCF record before it is normalized into a Contact. */
 export interface ParsedVCard {
   firstName: string;

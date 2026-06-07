@@ -151,7 +151,7 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
               <ul className="max-h-40 space-y-1 overflow-y-auto text-sm text-muted-foreground">
                 {summary.warnings.slice(0, 50).map((w, i) => (
                   <li key={i} className="truncate">
-                    {w.fullName} — {w.reason}
+                    {w.fullName}: {w.reason}
                   </li>
                 ))}
               </ul>

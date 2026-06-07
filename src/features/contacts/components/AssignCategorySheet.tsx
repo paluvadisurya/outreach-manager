@@ -93,7 +93,7 @@ export function AssignCategorySheet({
           {categories.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No categories yet
-              {mode === "add" ? " — create one above." : "."}
+              {mode === "add" ? ": create one above." : "."}
             </p>
           )}
           {categories.map((c) => (

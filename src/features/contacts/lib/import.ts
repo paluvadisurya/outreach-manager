@@ -89,7 +89,7 @@ export function buildImport(
       warnings.push({
         fullName: card.fullName || "(no name)",
         rawPhones: card.phones,
-        reason: "Previously removed — not re-added",
+        reason: "Previously removed, not re-added",
       });
       continue;
     }

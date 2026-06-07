@@ -1,6 +1,7 @@
 import { type Table } from "dexie";
 import { getDB, type SettingsRecord } from "@/lib/db/db";
 import type {
+  AppEvent,
   CallEntry,
   Campaign,
   CampaignMessage,
@@ -35,6 +36,8 @@ export interface BackupData {
   settings: SettingsRecord[];
   /** Added in a later version; older backups simply omit this. */
   calls: CallEntry[];
+  /** Analytics activity log. Added later; older backups simply omit this. */
+  events: AppEvent[];
 }
 
 export interface BackupCounts {
@@ -70,6 +73,7 @@ export async function exportBackup(): Promise<BackupData> {
     campaignMessages,
     settings,
     calls,
+    events,
   ] = await Promise.all([
     db.contacts.toArray(),
     db.categories.toArray(),
@@ -78,6 +82,7 @@ export async function exportBackup(): Promise<BackupData> {
     db.campaignMessages.toArray(),
     db.settings.toArray(),
     db.calls.toArray(),
+    db.events.toArray(),
   ]);
 
   return {
@@ -91,6 +96,7 @@ export async function exportBackup(): Promise<BackupData> {
     campaignMessages,
     settings,
     calls,
+    events,
   };
 }
 
@@ -166,6 +172,7 @@ export function parseBackup(text: string): BackupData {
     campaignMessages: arr<CampaignMessage>(data.campaignMessages),
     settings: arr<SettingsRecord>(data.settings),
     calls: arr<CallEntry>(data.calls),
+    events: arr<AppEvent>(data.events),
   };
 }
 
@@ -273,6 +280,7 @@ export async function restoreBackup(
       db.campaignMessages,
       db.settings,
       db.calls,
+      db.events,
     ],
     async () => {
       if (mode === "replace") {
@@ -284,6 +292,7 @@ export async function restoreBackup(
           db.campaignMessages.clear(),
           db.settings.clear(),
           db.calls.clear(),
+          db.events.clear(),
         ]);
       }
 
@@ -333,6 +342,8 @@ export async function restoreBackup(
       summary.campaignsAdded = await addMissing(db.campaigns, campaigns);
       summary.messagesAdded = await addMissing(db.campaignMessages, messages);
       summary.callsAdded = await addMissing(db.calls, data.calls);
+      // Activity log is append-only; restore any events not already present.
+      await addMissing(db.events, data.events);
 
       // Settings — restore on replace; on merge only fill if none exist.
       if (data.settings.length) {
@@ -363,6 +374,7 @@ export async function clearAllData(): Promise<void> {
       db.campaignMessages,
       db.settings,
       db.calls,
+      db.events,
     ],
     async () => {
       await Promise.all([
@@ -373,6 +385,7 @@ export async function clearAllData(): Promise<void> {
         db.campaignMessages.clear(),
         db.settings.clear(),
         db.calls.clear(),
+        db.events.clear(),
       ]);
     },
   );

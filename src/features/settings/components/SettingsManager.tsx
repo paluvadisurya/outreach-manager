@@ -25,6 +25,7 @@ import { settingsRepo } from "../lib/repository";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { deriveFirstName } from "@/features/contacts/lib/name";
 import { DataBackupSection } from "./DataBackupSection";
+import { ShortlistExportSection } from "./ShortlistExportSection";
 
 export function SettingsManager() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export function SettingsManager() {
     if (
       typeof window !== "undefined" &&
       !window.confirm(
-        `Permanently delete ${label}? This can't be undone. (They stay blocked from re-import only while kept here — deleting forever lets a future import re-add them.)`,
+        `Permanently delete ${label}? This can't be undone. (They stay blocked from re-import only while kept here. Deleting forever lets a future import re-add them.)`,
       )
     ) {
       return;
@@ -145,7 +146,7 @@ export function SettingsManager() {
               <div key={ex} className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{ex}</span>
                 <span className="font-semibold text-foreground">
-                  {deriveFirstName(ex, settings) || "—"}
+                  {deriveFirstName(ex, settings) || "-"}
                 </span>
               </div>
             ))}
@@ -202,7 +203,7 @@ export function SettingsManager() {
               </span>
               <span className="block text-sm text-muted-foreground">
                 Adds a manual “Open via wa.me” link under the Send button. Off by
-                default — Send already falls back to wa.me on its own.
+                default; Send already falls back to wa.me on its own.
               </span>
             </span>
             <Switch
@@ -215,6 +216,9 @@ export function SettingsManager() {
 
         {/* Data, backup & fresh start */}
         <DataBackupSection />
+
+        {/* Shortlist export — a safe, separate copy of just the keepers */}
+        <ShortlistExportSection />
 
         {/* Removed contacts — restore mistakes or delete for good */}
         <section className="rounded-3xl border border-hairline bg-card p-5 shadow-card">

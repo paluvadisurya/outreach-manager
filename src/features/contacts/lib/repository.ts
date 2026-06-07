@@ -1,5 +1,6 @@
 import type { Contact, ParsedVCard } from "@/lib/types";
 import { getDB } from "@/lib/db/db";
+import { eventsRepo } from "@/features/analytics/lib/repository";
 import { buildImport, type ImportResult } from "./import";
 
 export const contactsRepo = {
@@ -92,6 +93,7 @@ export const contactsRepo = {
    */
   async remove(contactIds: string[]): Promise<void> {
     const db = getDB();
+    const actuallyRemoved: string[] = [];
     await db.transaction("rw", db.contacts, db.calls, async () => {
       const now = Date.now();
       for (const id of contactIds) {
@@ -103,8 +105,12 @@ export const contactsRepo = {
           updatedAt: now,
         });
         await db.calls.delete(id);
+        actuallyRemoved.push(id);
       }
     });
+    if (actuallyRemoved.length) {
+      eventsRepo.logMany("contact_removed", actuallyRemoved);
+    }
   },
 
   /** Restore soft-removed contacts back into the active lists. */

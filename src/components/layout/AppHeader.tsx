@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { Settings, type LucideIcon } from "lucide-react";
+import { Settings, Activity, type LucideIcon } from "lucide-react";
 import { BackupButton } from "./BackupButton";
 
 interface AppHeaderProps {
@@ -18,6 +18,8 @@ interface AppHeaderProps {
   hideSettings?: boolean;
   /** Hide the quick Save-backup button (defaults to shown). */
   hideBackup?: boolean;
+  /** Hide the Analytics shortcut (defaults to shown; hidden on the Analytics page). */
+  hideAnalytics?: boolean;
 }
 
 /** A sticky, glassy page header used at the top of each tab. */
@@ -28,6 +30,7 @@ export function AppHeader({
   action,
   hideSettings,
   hideBackup,
+  hideAnalytics,
 }: AppHeaderProps) {
   return (
     <header className="glass sticky top-0 z-30 border-b border-border/50">
@@ -45,7 +48,10 @@ export function AppHeader({
             </span>
           )}
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold leading-tight tracking-tight text-foreground">
+            {/* Wrap to two lines on a narrow screen instead of clipping mid-word
+                (e.g. "Templates" → "Templ…"); scale down the display size on
+                small phones so the title + trailing controls all fit. */}
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground line-clamp-2 sm:text-2xl">
               {title}
             </h1>
             {subtitle && (
@@ -57,6 +63,15 @@ export function AppHeader({
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {action}
+          {!hideAnalytics && (
+            <Link
+              href="/analytics"
+              aria-label="Analytics"
+              className="flex min-h-touch min-w-touch items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95"
+            >
+              <Activity className="h-5 w-5" />
+            </Link>
+          )}
           {!hideBackup && <BackupButton />}
           {!hideSettings && (
             <Link

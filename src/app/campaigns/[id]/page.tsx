@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { SendingQueue } from "@/features/campaigns/components/SendingQueue";
 
 export default function CampaignQueuePage({
@@ -9,5 +9,9 @@ export default function CampaignQueuePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  return <SendingQueue campaignId={id} />;
+  return (
+    <Suspense fallback={null}>
+      <SendingQueue campaignId={id} />
+    </Suspense>
+  );
 }

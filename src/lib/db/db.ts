@@ -1,5 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type {
+  AppEvent,
   AppSettings,
   CallEntry,
   Campaign,
@@ -29,6 +30,7 @@ export class OutreachDB extends Dexie {
   campaignMessages!: Table<CampaignMessage, string>;
   settings!: Table<SettingsRecord, string>;
   calls!: Table<CallEntry, string>;
+  events!: Table<AppEvent, string>;
 
   constructor() {
     super("outreach-manager");
@@ -76,6 +78,13 @@ export class OutreachDB extends Dexie {
         if (!m.templateId)
           m.templateId = templateByCampaign.get(m.campaignId) ?? "";
       });
+    });
+    // v6 — purely additive: a lightweight append-only activity log powering the
+    // Analytics dashboard. No existing store changes and no data migration, so
+    // existing installs upgrade transparently. `day` (local-midnight epoch) is
+    // indexed for fast daily grouping; `[type+at]` supports filtered time scans.
+    this.version(6).stores({
+      events: "id, type, at, day, [type+at]",
     });
   }
 }
