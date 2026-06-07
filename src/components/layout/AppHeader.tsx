@@ -30,34 +30,39 @@ export function AppHeader({
   hideBackup,
 }: AppHeaderProps) {
   return (
-    <header className="glass sticky top-0 z-30 border-b border-border/60">
-      <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-5 pb-3 pt-[max(0.9rem,env(safe-area-inset-top))]">
-        <div className="flex min-w-0 items-center gap-3">
+    <header className="glass sticky top-0 z-30 border-b border-border/50">
+      <div className="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 pb-3.5 pt-[max(0.85rem,env(safe-area-inset-top))]">
+        <div className="flex min-w-0 items-center gap-2.5">
           {Icon && (
-            <Icon
+            // The section-identity "app icon" bubble: a soft gradient tile that
+            // gives each tab a distinct, premium signature while the header
+            // structure stays identical everywhere (no layout shift).
+            <span
               aria-hidden
-              className="h-7 w-7 shrink-0"
-              strokeWidth={2}
-              style={{ color: "hsl(var(--section))" }}
-            />
+              className="section-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.8rem] shadow-soft ring-1 ring-white/30"
+            >
+              <Icon className="h-5 w-5 text-white" strokeWidth={2.1} />
+            </span>
           )}
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="truncate text-2xl font-bold leading-tight tracking-tight text-foreground">
               {title}
             </h1>
             {subtitle && (
-              <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
+              <p className="truncate text-sm font-medium text-muted-foreground">
+                {subtitle}
+              </p>
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-0.5">
           {action}
           {!hideBackup && <BackupButton />}
           {!hideSettings && (
             <Link
               href="/settings"
               aria-label="Settings"
-              className="flex min-h-touch min-w-touch items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="flex min-h-touch min-w-touch items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground active:scale-95"
             >
               <Settings className="h-5 w-5" />
             </Link>

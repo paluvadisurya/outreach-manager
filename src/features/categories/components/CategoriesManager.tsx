@@ -81,13 +81,18 @@ export function CategoriesManager({ embedded = false }: { embedded?: boolean } =
             return (
               <li
                 key={c.id}
-                className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 shadow-soft"
+                className="flex items-center gap-3 rounded-3xl border border-hairline bg-card p-3 pl-3.5 shadow-card transition-all hover:shadow-float"
               >
                 <span
-                  className="h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-inset ring-black/5"
-                  style={{ backgroundColor: c.color }}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset ring-black/[0.06]"
+                  style={{ backgroundColor: `${c.color}1f` }}
                   aria-hidden
-                />
+                >
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ backgroundColor: c.color }}
+                  />
+                </span>
                 <button
                   type="button"
                   onClick={() => setEditing(c)}

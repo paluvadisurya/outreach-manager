@@ -71,17 +71,16 @@ export function TemplatesManager() {
                 key={t.id}
                 type="button"
                 onClick={() => openEdit(t)}
-                className="block w-full rounded-2xl border border-border/70 bg-card/80 p-4 text-left shadow-soft transition-all hover:shadow-card"
+                className="block w-full rounded-3xl border border-hairline bg-card p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-float active:scale-[0.99]"
               >
                 <div className="flex items-center gap-3">
-                  <LayoutTemplate
-                    className="h-6 w-6 shrink-0 text-muted-foreground"
-                    aria-hidden
-                  />
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                    <LayoutTemplate className="h-[1.15rem] w-[1.15rem]" aria-hidden />
+                  </span>
                   <p className="min-w-0 flex-1 truncate font-semibold text-foreground">
                     {t.name}
                   </p>
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">
                     {relativeTime(t.updatedAt)}
                   </span>
                 </div>

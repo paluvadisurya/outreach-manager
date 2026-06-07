@@ -51,7 +51,7 @@ export function PeopleManager() {
 
       {/* Segmented sub-tabs */}
       <div className="px-5 pb-3 pt-1">
-        <div className="flex gap-1.5 rounded-2xl bg-secondary/60 p-1">
+        <div className="flex gap-1 rounded-2xl bg-elevated p-1 ring-1 ring-inset ring-hairline">
           {tabs.map((t) => {
             const active = sub === t.key;
             const Icon = t.icon;
@@ -62,9 +62,9 @@ export function PeopleManager() {
                 onClick={() => setSub(t.key)}
                 aria-pressed={active}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                  "flex flex-1 items-center justify-center gap-2 rounded-[0.85rem] px-3 py-2 text-sm font-semibold transition-all active:scale-[0.98]",
                   active
-                    ? "bg-card text-foreground shadow-soft"
+                    ? "bg-card text-foreground shadow-soft ring-1 ring-hairline"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >

@@ -468,7 +468,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               key={b.key}
               type="button"
               onClick={() => openReview(b.key)}
-              className="flex min-w-[58px] flex-1 flex-col items-center rounded-xl bg-secondary/70 px-2 py-1.5 transition-colors hover:bg-secondary active:scale-[0.97]"
+              className="flex min-w-[58px] flex-1 flex-col items-center rounded-2xl bg-elevated px-2 py-2 ring-1 ring-inset ring-hairline transition-all hover:bg-secondary active:scale-[0.97]"
             >
               <span className={`text-base font-bold tabular-nums ${b.tone}`}>
                 {b.count}
@@ -569,8 +569,8 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           </button>
         )}
 
-        <div className="mt-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-          <p className="text-lg font-bold text-foreground">
+        <div className="mt-3 rounded-3xl border border-hairline bg-card p-4 shadow-card">
+          <p className="text-lg font-bold tracking-tight text-foreground">
             {current.contactName}
           </p>
           <p className="text-sm text-muted-foreground">{current.phone}</p>
@@ -765,7 +765,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                 <button
                   type="button"
                   onClick={() => jumpTo(m)}
-                  className="flex flex-1 items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left hover:bg-secondary"
+                  className="flex flex-1 items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-foreground">
@@ -810,7 +810,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         <div className="space-y-2">
           {/* Rename */}
           {renaming ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-card p-2">
+            <div className="flex items-center gap-2 rounded-2xl border border-hairline bg-card p-2">
               <Input
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
@@ -831,7 +831,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                 setNameDraft(campaign.name);
                 setRenaming(true);
               }}
-              className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+              className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
             >
               <Pencil className="h-5 w-5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
@@ -850,7 +850,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               setManageOpen(false);
               void regenerate();
             }}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
           >
             <RefreshCw className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -867,7 +867,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           <button
             type="button"
             onClick={refreshContacts}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
           >
             <Users className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -886,7 +886,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           <button
             type="button"
             onClick={resetProgress}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
           >
             <RotateCcw className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -936,7 +936,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                 <button
                   type="button"
                   onClick={() => attachTemplate(t.id)}
-                  className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card p-3 text-left hover:bg-secondary"
+                  className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
                 >
                   <span className="truncate font-semibold text-foreground">
                     {t.name}
@@ -961,7 +961,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           <button
             type="button"
             onClick={removeReviewFromCampaign}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
           >
             <UserMinus className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -1005,7 +1005,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           <button
             type="button"
             onClick={removeFromCampaign}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
           >
             <UserMinus className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -1041,7 +1041,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               key={cat.id}
               type="button"
               onClick={() => removeFromCategory(cat.id)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+              className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
             >
               <FolderMinus className="h-5 w-5 shrink-0 text-destructive" />
               <span className="min-w-0 flex-1">

@@ -268,7 +268,7 @@ export function TemplateEditor({
           )}
 
           {/* Variable toolbar */}
-          <div className="rounded-2xl border border-border/70 bg-secondary/40 p-3">
+          <div className="rounded-2xl border border-hairline bg-secondary/40 p-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {hasSelection ? "Replace selection with" : "Insert field"}
             </p>
@@ -306,7 +306,7 @@ export function TemplateEditor({
             )}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-border/70 bg-[#e6ddd3] p-4">
+          <div className="overflow-hidden rounded-2xl border border-hairline bg-[#e6ddd3] p-4">
             <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-md bg-[#dcf8c6] px-3.5 py-2.5 shadow-sm">
               <ExpandableText
                 text={

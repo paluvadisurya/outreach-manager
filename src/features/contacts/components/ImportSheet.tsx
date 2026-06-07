@@ -108,9 +108,11 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={busy}
-            className="flex min-h-[160px] w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-input bg-secondary/40 px-6 text-center transition-colors hover:border-primary/50"
+            className="flex min-h-[180px] w-full flex-col items-center justify-center gap-3.5 rounded-3xl border-2 border-dashed border-input bg-elevated px-6 text-center transition-all hover:border-primary/50 hover:bg-accent/40 active:scale-[0.99]"
           >
-            <Upload className="h-8 w-8 text-primary" />
+            <span className="section-gradient flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-soft ring-1 ring-white/30">
+              <Upload className="h-7 w-7" />
+            </span>
             <div>
               <p className="font-medium text-foreground">
                 {busy ? "Reading files…" : "Tap to select .vcf files"}
@@ -140,7 +142,7 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
           </div>
 
           {summary.warnings.length > 0 && (
-            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+            <div className="rounded-2xl border border-hairline bg-elevated p-3.5">
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
                 <FileWarning className="h-4 w-4 text-destructive" />
                 {summary.warnings.length} record
@@ -160,8 +162,8 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
 
       {stage === "done" && summary && (
         <div className="flex flex-col items-center py-6 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-success">
-            <Check className="h-7 w-7 text-success-foreground" />
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success text-success-foreground shadow-[0_8px_24px_-6px_hsl(var(--success)/0.5)] ring-4 ring-success/10">
+            <Check className="h-8 w-8" strokeWidth={2.5} />
           </div>
           <h3 className="text-base font-semibold text-foreground">
             Import complete
@@ -187,11 +189,13 @@ function Stat({
 }) {
   return (
     <div
-      className={`rounded-lg border p-3 ${
-        highlight ? "border-primary/30 bg-accent" : "border-border bg-card"
+      className={`rounded-2xl border p-3.5 ${
+        highlight
+          ? "border-primary/30 bg-accent ring-1 ring-primary/15"
+          : "border-hairline bg-card shadow-soft"
       }`}
     >
-      <div className="text-2xl font-semibold text-foreground">{value}</div>
+      <div className="text-2xl font-bold tracking-tight text-foreground">{value}</div>
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
     </div>
   );

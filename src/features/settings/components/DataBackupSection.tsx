@@ -137,14 +137,16 @@ export function DataBackupSection() {
   };
 
   return (
-    <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-      <div className="mb-3 flex items-center gap-2">
-        <Database className="h-5 w-5 text-muted-foreground" aria-hidden />
-        <h2 className="font-bold text-foreground">Data &amp; backup</h2>
+    <section className="rounded-3xl border border-hairline bg-card p-5 shadow-card">
+      <div className="mb-4 flex items-center gap-2.5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+          <Database className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+        </span>
+        <h2 className="font-bold tracking-tight text-foreground">Data &amp; backup</h2>
       </div>
 
       {/* Storage durability */}
-      <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-secondary/50 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-elevated p-3.5 ring-1 ring-inset ring-hairline">
         <div className="flex items-start gap-2">
           {persisted ? (
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
@@ -174,7 +176,7 @@ export function DataBackupSection() {
       {status && (
         <div
           className={
-            "mb-3 flex items-start gap-2 rounded-xl p-3 text-sm " +
+            "mb-3 flex items-start gap-2 rounded-2xl p-3.5 text-sm " +
             (status.kind === "ok"
               ? "bg-accent text-accent-foreground"
               : "bg-destructive/10 text-destructive")
@@ -253,7 +255,7 @@ export function DataBackupSection() {
             type="button"
             disabled={busy === "restore"}
             onClick={() => onRestore("merge")}
-            className="flex w-full items-start gap-3 rounded-2xl border border-border/70 bg-card p-4 text-left hover:bg-secondary disabled:opacity-50"
+            className="flex w-full items-start gap-3 rounded-2xl border border-hairline bg-card p-4 text-left shadow-soft transition-all hover:bg-secondary active:scale-[0.99] disabled:opacity-50"
           >
             <Merge className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <span>
@@ -271,7 +273,7 @@ export function DataBackupSection() {
             type="button"
             disabled={busy === "restore"}
             onClick={() => onRestore("replace")}
-            className="flex w-full items-start gap-3 rounded-2xl border border-border/70 bg-card p-4 text-left hover:bg-secondary disabled:opacity-50"
+            className="flex w-full items-start gap-3 rounded-2xl border border-hairline bg-card p-4 text-left shadow-soft transition-all hover:bg-secondary active:scale-[0.99] disabled:opacity-50"
           >
             <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-foreground" />
             <span>
@@ -318,7 +320,7 @@ export function DataBackupSection() {
           </div>
         }
       >
-        <div className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="flex items-start gap-2 rounded-2xl bg-destructive/10 p-3.5 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Export a backup first if you might want this data again — this can't

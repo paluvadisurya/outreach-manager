@@ -231,10 +231,10 @@ export function CampaignCreateSheet({
                 <div
                   key={t.id}
                   className={cn(
-                    "flex items-center gap-2 rounded-lg border px-2 transition-colors",
+                    "flex items-center gap-2 rounded-2xl border px-2.5 transition-all",
                     selected
-                      ? "border-primary bg-accent"
-                      : "border-input bg-card",
+                      ? "border-primary/40 bg-accent ring-1 ring-primary/15"
+                      : "border-hairline bg-card",
                   )}
                 >
                   <button
@@ -255,7 +255,7 @@ export function CampaignCreateSheet({
                       aria-label={
                         isPrimary ? "Primary template" : "Set as primary template"
                       }
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-secondary"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl hover:bg-secondary"
                     >
                       <Star
                         className={cn(
@@ -281,7 +281,7 @@ export function CampaignCreateSheet({
 
         {preview && (
           <Field label="Preview">
-            <div className="rounded-lg border border-border bg-secondary/40 p-3 text-sm text-foreground">
+            <div className="rounded-2xl border border-hairline bg-elevated p-3.5 text-sm text-foreground ring-1 ring-inset ring-hairline">
               <ExpandableText text={preview.text || "—"} lines={6} />
             </div>
           </Field>
@@ -344,10 +344,10 @@ function SelectRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-touch w-full items-center justify-between rounded-lg border px-3 text-left text-sm transition-colors",
+        "flex min-h-touch w-full items-center justify-between rounded-2xl border px-3.5 text-left text-sm font-medium transition-all active:scale-[0.99]",
         selected
-          ? "border-primary bg-accent text-accent-foreground"
-          : "border-input bg-card text-foreground hover:bg-secondary",
+          ? "border-primary/40 bg-accent text-accent-foreground ring-1 ring-primary/15"
+          : "border-hairline bg-card text-foreground hover:bg-secondary",
       )}
     >
       <span className="truncate">{label}</span>

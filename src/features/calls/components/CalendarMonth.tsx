@@ -63,7 +63,7 @@ export function CalendarMonth({
   };
 
   return (
-    <div className="rounded-2xl border border-border/70 bg-card/80 p-3 shadow-soft">
+    <div className="rounded-3xl border border-hairline bg-card p-4 shadow-card">
       {/* Month header */}
       <div className="mb-2 flex items-center justify-between">
         <button

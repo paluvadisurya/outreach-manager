@@ -48,7 +48,7 @@ export function Sheet({
     <div className="fixed inset-x-0 top-0 z-50 flex h-[100dvh] flex-col justify-end">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-foreground/40 backdrop-blur-[3px] animate-in fade-in duration-300"
         onClick={onClose}
         aria-hidden
         tabIndex={-1}
@@ -58,17 +58,17 @@ export function Sheet({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "relative mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-[1.75rem] bg-card shadow-float",
+          "relative mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-[2rem] border-t border-white/60 bg-card shadow-float",
           "animate-in slide-in-from-bottom duration-300",
         )}
       >
         <div className="flex justify-center pb-1 pt-3">
-          <span className="h-1.5 w-10 rounded-full bg-border" aria-hidden />
+          <span className="h-1.5 w-11 rounded-full bg-border" aria-hidden />
         </div>
         <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-1">
           <div className="min-w-0">
             {title && (
-              <h2 className="truncate text-xl font-bold text-foreground">
+              <h2 className="truncate text-xl font-bold tracking-tight text-foreground">
                 {title}
               </h2>
             )}
@@ -92,7 +92,7 @@ export function Sheet({
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
 
         {footer && (
-          <div className="border-t border-border/70 bg-card px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+          <div className="border-t border-hairline bg-card px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
             {footer}
           </div>
         )}
