@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageCircle,
+  Phone,
   Check,
   SkipForward,
   AlertTriangle,
@@ -23,23 +24,28 @@ import {
   Plus,
   Link2,
   UserMinus,
+  UserX,
   FolderMinus,
   Users,
+  CircleMinus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Sheet } from "@/components/ui/sheet";
+import { ExpandableText } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import type { CampaignMessage, MessageStatus } from "@/lib/types";
 import { templatesRepo } from "@/features/templates/lib/repository";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { contactsRepo } from "@/features/contacts/lib/repository";
+import { callsRepo } from "@/features/calls/lib/repository";
 import { useSettings } from "@/features/settings/hooks/useSettings";
 import { campaignsRepo } from "../lib/repository";
 import { computeProgress, resumeIndex } from "../lib/progress";
-import { buildWaLink } from "../lib/whatsapp";
+import { buildWaLink, openWhatsApp } from "../lib/whatsapp";
 
 const STATUS_META: Record<MessageStatus, { label: string; variant: "success" | "secondary" | "destructive" | "default" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -67,6 +73,15 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   }, [campaignId]);
 
   const [index, setIndex] = React.useState(0);
+  // Whether the person currently in focus is already on the call list, so the
+  // "Add to call list" button can reflect state (Req 5).
+  const onCallList = useLiveQuery(async () => {
+    if (!messages || messages.length === 0) return false;
+    const cur = messages[Math.min(index, messages.length - 1)];
+    if (!cur) return false;
+    return Boolean(await callsRepo.get(cur.contactId));
+  }, [messages, index]);
+
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [reviewFilter, setReviewFilter] = React.useState<MessageStatus | "all">(
     "all",
@@ -76,6 +91,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   const [nameDraft, setNameDraft] = React.useState("");
   const [addTemplateOpen, setAddTemplateOpen] = React.useState(false);
   const [personMenuOpen, setPersonMenuOpen] = React.useState(false);
+  // The review-list row whose remove options are open (Req 1 follow-up).
+  const [reviewRemoveTarget, setReviewRemoveTarget] =
+    React.useState<CampaignMessage | null>(null);
   const initialized = React.useRef(false);
 
   const templateName = React.useCallback(
@@ -114,6 +132,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!messages) return;
     const current = messages[index];
     if (!current) return;
+    haptic(status === "sent" ? "success" : "light");
     await campaignsRepo.setMessageStatus(current.id, status);
 
     // Advance to the next message that still needs attention; if none remain
@@ -170,6 +189,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!messages) return;
     const current = messages[Math.min(index, messages.length - 1)];
     if (!current || current.templateId === templateId) return;
+    haptic("light");
     await campaignsRepo.setMessageTemplate(campaignId, current.contactId, templateId);
   };
 
@@ -205,6 +225,68 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     setPersonMenuOpen(false);
     await contactsRepo.removeFromCategory([current.contactId], categoryId);
     await campaignsRepo.removeMessage(campaignId, current.contactId);
+    setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
+  };
+
+  // Remove the current person as a contact entirely (no WhatsApp / wrong number):
+  // hide them everywhere, skip them on future imports, and drop them here too.
+  const removeContactEntirely = async () => {
+    if (!messages) return;
+    const current = messages[Math.min(index, messages.length - 1)];
+    if (!current) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${current.contactName} entirely? They'll be hidden from all lists and skipped on future imports. You can restore them from Settings → Removed contacts.`,
+      )
+    ) {
+      return;
+    }
+    setPersonMenuOpen(false);
+    haptic("warning");
+    await contactsRepo.remove([current.contactId]);
+    await campaignsRepo.removeMessage(campaignId, current.contactId);
+    setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
+  };
+
+  // Add the person in focus to the call list, linking this campaign so its
+  // message shows up there as a talking point (Req 5). Idempotent.
+  const addCurrentToCallList = async () => {
+    if (!messages) return;
+    const cur = messages[Math.min(index, messages.length - 1)];
+    if (!cur) return;
+    haptic("light");
+    await callsRepo.addContacts([cur.contactId], [campaignId]);
+  };
+
+  // From the review list's remove options (Req 1): drop the person from this
+  // campaign's queue only — their group membership and contact record stay.
+  const removeReviewFromCampaign = async () => {
+    const target = reviewRemoveTarget;
+    if (!target || !messages) return;
+    setReviewRemoveTarget(null);
+    haptic("warning");
+    await campaignsRepo.removeMessage(campaignId, target.contactId);
+    setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
+  };
+
+  // From the review list's remove options (Req 1): remove the person as a contact
+  // entirely — hidden everywhere, skipped on future imports, dropped from here.
+  const removeReviewContactEntirely = async () => {
+    const target = reviewRemoveTarget;
+    if (!target || !messages) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${target.contactName} entirely? They'll be hidden from all lists and skipped on future imports. Restore from Settings → Removed contacts.`,
+      )
+    ) {
+      return;
+    }
+    setReviewRemoveTarget(null);
+    haptic("warning");
+    await contactsRepo.remove([target.contactId]);
+    await campaignsRepo.removeMessage(campaignId, target.contactId);
     setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
   };
 
@@ -269,10 +351,10 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
 
   const progress = computeProgress(messages);
   const current = messages[Math.min(index, messages.length - 1)]!;
-  const waLink = buildWaLink(current.phone, current.message, settings.whatsappApp);
-  // Always-available universal fallback in case a native scheme isn't registered.
+  // Manual universal-link fallback (opt-in; the Send button already auto-falls
+  // back to wa.me on its own when a native app doesn't open).
   const waFallbackLink = buildWaLink(current.phone, current.message, "wa_me");
-  const showFallback = settings.whatsappApp !== "wa_me";
+  const showFallback = settings.showWaMeFallback;
   const statusMeta = STATUS_META[current.status];
   const paused = campaign.status === "paused";
   const isFinal =
@@ -430,26 +512,18 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           </div>
         </div>
 
-        <div className="mt-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-          <p className="text-lg font-bold text-foreground">
-            {current.contactName}
-          </p>
-          <p className="text-sm text-muted-foreground">{current.phone}</p>
-          <div className="mt-3 rounded-2xl border border-border/60 bg-[#e6ddd3] p-3">
-            <div className="ml-auto max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-tr-md bg-[#dcf8c6] px-3.5 py-2.5 text-[15px] leading-relaxed text-[#111b21] shadow-sm">
-              {current.message}
-            </div>
-          </div>
-        </div>
-
-        {/* Template picker — only when the campaign carries more than one. Tap a
-            chip to re-render THIS person's message from that template. */}
+        {/* Template picker sits ABOVE the message so the action buttons below
+            stay at a constant position as you move between people (Req 2). Only
+            shown when the campaign carries more than one template — tap a chip to
+            re-render THIS person's message from that template. */}
         {campaign.templateIds.length > 1 && (
           <div className="mt-3">
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Template for this person
             </p>
-            <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+            {/* Vertical padding (with matching negative margin) gives the active
+                chip's ring room so it isn't clipped by the horizontal scroller. */}
+            <div className="no-scrollbar -my-1 flex gap-1.5 overflow-x-auto px-0.5 py-1">
               {campaign.templateIds.map((tid) => {
                 const active = current.templateId === tid;
                 const isPrimary = campaign.primaryTemplateId === tid;
@@ -494,6 +568,51 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             Add another template
           </button>
         )}
+
+        <div className="mt-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
+          <p className="text-lg font-bold text-foreground">
+            {current.contactName}
+          </p>
+          <p className="text-sm text-muted-foreground">{current.phone}</p>
+          <div className="mt-3 rounded-2xl border border-border/60 bg-[#e6ddd3] p-3">
+            <div className="ml-auto max-w-[92%] rounded-2xl rounded-tr-md bg-[#dcf8c6] px-3.5 py-2.5 shadow-sm">
+              <ExpandableText
+                text={current.message}
+                lines={6}
+                className="text-[13px] leading-relaxed text-[#111b21]"
+                toggleClassName="text-[#075e54]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Tie messaging to the call list — drop this person onto it so their
+            message rides along as a talking point (Req 5). */}
+        <button
+          type="button"
+          onClick={addCurrentToCallList}
+          disabled={Boolean(onCallList)}
+          className={cn(
+            "mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold transition-colors",
+            onCallList
+              ? // Already added — muted, clearly a settled/done state.
+                "border-border/60 bg-secondary/40 text-muted-foreground"
+              : // Actionable — subtly highlighted so it stands apart from "added".
+                "border-primary/30 bg-accent/60 text-accent-foreground hover:bg-accent",
+          )}
+        >
+          {onCallList ? (
+            <>
+              <Check className="h-4 w-4 text-primary" />
+              On your call list
+            </>
+          ) : (
+            <>
+              <Phone className="h-4 w-4 text-primary" />
+              Add to call list
+            </>
+          )}
+        </button>
 
         {/* Secondary marks — compact, one row, out of the primary thumb path */}
         <div className="mt-4 grid grid-cols-3 gap-2">
@@ -553,17 +672,17 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
 
         {/* Two large primary actions — the core send loop */}
         <div className="grid grid-cols-2 gap-3">
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block"
+          <Button
+            className="h-14 w-full text-base"
+            variant="outline"
+            onClick={() => {
+              haptic("light");
+              openWhatsApp(current.phone, current.message, settings.whatsappApp);
+            }}
           >
-            <Button className="h-14 w-full text-base" variant="outline">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              WhatsApp
-            </Button>
-          </a>
+            <MessageCircle className="h-5 w-5 text-primary" />
+            WhatsApp
+          </Button>
           {isFinal ? (
             <Button
               className="h-14 w-full text-base"
@@ -592,6 +711,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             href={waFallbackLink}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => haptic("light")}
             className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
             <Link2 className="h-3.5 w-3.5" />
@@ -641,11 +761,11 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         ) : (
           <ul className="space-y-2">
             {reviewList.map((m) => (
-              <li key={m.id}>
+              <li key={m.id} className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => jumpTo(m)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left hover:bg-secondary"
+                  className="flex flex-1 items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left hover:bg-secondary"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-foreground">
@@ -659,6 +779,19 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                     {STATUS_META[m.status].label}
                   </Badge>
                 </button>
+                {/* Quick remove from the queue — offered for every bucket except
+                    Sent, where dropping a contact you've already messaged makes
+                    no sense (Req 1). */}
+                {m.status !== "sent" && (
+                  <button
+                    type="button"
+                    onClick={() => setReviewRemoveTarget(m)}
+                    aria-label={`Remove ${m.contactName}`}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive/10"
+                  >
+                    <CircleMinus className="h-5 w-5" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -816,12 +949,57 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         )}
       </Sheet>
 
+      {/* Remove options for a person tapped in the review list (Req 1): from this
+          campaign only, or as a contact everywhere. */}
+      <Sheet
+        open={reviewRemoveTarget !== null}
+        onClose={() => setReviewRemoveTarget(null)}
+        title={reviewRemoveTarget?.contactName ?? "Remove"}
+        description="Remove this person from this campaign, or from your contacts entirely."
+      >
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={removeReviewFromCampaign}
+            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+          >
+            <UserMinus className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-foreground">
+                Remove from this campaign
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Drops them from this queue only. Keeps their contact and group
+                membership.
+              </span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={removeReviewContactEntirely}
+            className="flex w-full items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-left transition-colors hover:bg-destructive/10"
+          >
+            <UserX className="h-5 w-5 shrink-0 text-destructive" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-destructive">
+                Remove contact entirely
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Hides them everywhere and skips them on future imports. Restorable
+                from Settings → Removed contacts.
+              </span>
+            </span>
+          </button>
+        </div>
+      </Sheet>
+
       {/* Per-person options — remove from the queue, or from a source group. */}
       <Sheet
         open={personMenuOpen}
         onClose={() => setPersonMenuOpen(false)}
         title={current.contactName}
-        description="Remove this person from the campaign or from a source group."
+        description="Remove this person from the campaign, a source group, or your contacts entirely."
       >
         <div className="space-y-2">
           <button
@@ -836,6 +1014,24 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               </span>
               <span className="block text-sm text-muted-foreground">
                 Drops them from this queue only. Keeps their group membership.
+              </span>
+            </span>
+          </button>
+
+          {/* Remove as a contact entirely — the "no WhatsApp / wrong number" case. */}
+          <button
+            type="button"
+            onClick={removeContactEntirely}
+            className="flex w-full items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-left transition-colors hover:bg-destructive/10"
+          >
+            <UserX className="h-5 w-5 shrink-0 text-destructive" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-destructive">
+                Remove contact entirely
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                No WhatsApp / wrong number. Hides them everywhere and skips them on
+                future imports. Restorable from Settings.
               </span>
             </span>
           </button>

@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Star } from "lucide-react";
+import { Check, CheckCheck, Star } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ExpandableText } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { templatesRepo } from "@/features/templates/lib/repository";
@@ -57,6 +58,24 @@ export function CampaignCreateSheet({
     setCategoryIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+
+  const allCategoriesSelected =
+    categories.length > 0 && categories.every((c) => categoryIds.includes(c.id));
+  const toggleAllCategories = () =>
+    setCategoryIds(allCategoriesSelected ? [] : categories.map((c) => c.id));
+
+  const allTemplatesSelected =
+    templates.length > 0 && templates.every((t) => templateIds.includes(t.id));
+  const toggleAllTemplates = () => {
+    if (allTemplatesSelected) {
+      setTemplateIds([]);
+      setPrimaryTemplateId("");
+    } else {
+      const ids = templates.map((t) => t.id);
+      setTemplateIds(ids);
+      setPrimaryTemplateId((p) => p || ids[0] || "");
+    }
+  };
 
   // Toggling a template keeps a sensible primary: the first selected becomes
   // primary; removing the primary promotes whatever remains.
@@ -161,6 +180,14 @@ export function CampaignCreateSheet({
         ) : (
           <Field
             label={`Groups${categoryIds.length ? ` · ${categoryIds.length} selected` : ""}`}
+            action={
+              categories.length > 1 ? (
+                <SelectAllButton
+                  active={allCategoriesSelected}
+                  onClick={toggleAllCategories}
+                />
+              ) : undefined
+            }
           >
             <div className="space-y-2">
               {categories.length === 0 && (
@@ -182,6 +209,14 @@ export function CampaignCreateSheet({
 
         <Field
           label={`Templates${templateIds.length ? ` · ${templateIds.length} selected` : ""}`}
+          action={
+            templates.length > 1 ? (
+              <SelectAllButton
+                active={allTemplatesSelected}
+                onClick={toggleAllTemplates}
+              />
+            ) : undefined
+          }
         >
           <div className="space-y-2">
             {templates.length === 0 && (
@@ -246,8 +281,8 @@ export function CampaignCreateSheet({
 
         {preview && (
           <Field label="Preview">
-            <div className="whitespace-pre-wrap rounded-lg border border-border bg-secondary/40 p-3 text-sm text-foreground">
-              {preview.text || "—"}
+            <div className="rounded-lg border border-border bg-secondary/40 p-3 text-sm text-foreground">
+              <ExpandableText text={preview.text || "—"} lines={6} />
             </div>
           </Field>
         )}
@@ -258,16 +293,40 @@ export function CampaignCreateSheet({
 
 function Field({
   label,
+  action,
   children,
 }: {
   label: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-foreground">{label}</label>
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-sm font-medium text-foreground">{label}</label>
+        {action}
+      </div>
       {children}
     </div>
+  );
+}
+
+function SelectAllButton({
+  active,
+  onClick,
+}: {
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+    >
+      <CheckCheck className="h-3.5 w-3.5" />
+      {active ? "Clear all" : "Select all"}
+    </button>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { LayoutTemplate, Plus, Sparkles } from "lucide-react";
+import { LayoutTemplate, Plus, Braces } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -92,7 +92,7 @@ export function TemplatesManager() {
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {vars.map((v) => (
                       <Badge key={v} variant="default">
-                        <Sparkles className="h-3 w-3" />
+                        <Braces className="h-3 w-3" />
                         {VARIABLE_LABELS[v]}
                       </Badge>
                     ))}

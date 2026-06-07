@@ -100,3 +100,47 @@ export function tidyMessage(text: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
+/**
+ * Build a ready-to-paste ChatGPT prompt that rephrases a WhatsApp outreach
+ * message while leaving every `{{variable}}` token untouched. Tuned for a
+ * real-estate sales professional in India messaging channel partners, direct
+ * customers and business professionals: simple Indian English, warm and
+ * relationship-building, medium length, no emojis, no em dashes, and not
+ * "AI-ish". The reply is requested in a markdown code block so the user can copy
+ * it cleanly back into the template box.
+ */
+export function buildRephrasePrompt(body: string): string {
+  return [
+    "Rephrase the WhatsApp message below. It is a friendly business outreach from a real-estate sales professional in India. The reader is usually a channel partner, a direct customer, or a business professional who is interested in real estate.",
+    "",
+    "First understand what the sender is really trying to say from the rough input. Then rewrite it so it reads clean, confident and ready to send.",
+    "",
+    "Follow these rules exactly:",
+    "- Keep every placeholder token EXACTLY as written, including the double curly braces, for example {{first_name}}, {{company}}, {{designation}}. Never translate, rename, remove, or reword them, and keep them in a natural place in the sentence.",
+    "- Keep the original meaning and intent. Do not invent new offers, facts, numbers, or claims.",
+    "- Understand the intent behind the message and gently amplify it to build a warmer relationship, the way a real person in India would in everyday life. Stay genuine, never pushy or salesy.",
+    "- Keep the length balanced. Not too long and not too short. A few clear lines that get the point across quickly.",
+    "- Tone: warm, polite and business-professional, yet relaxed and human, like a real person texting, not a bot.",
+    "- Use simple, clear Indian English with short sentences that are easy to read on a phone.",
+    "- Do NOT use any emojis.",
+    "- Do NOT use em dashes (the long dash). Use a comma, a full stop, or split into a new sentence instead.",
+    "- Avoid AI-ish, robotic, or heavy marketing language and buzzwords. Keep it natural and effective.",
+    "- Format it cleanly for WhatsApp with short paragraphs and natural line breaks.",
+    "- Return ONLY the rephrased message inside a single markdown code block, with nothing before or after it, so I can copy it directly.",
+    "",
+    "Message to rephrase:",
+    body.trim(),
+  ].join("\n");
+}
+
+/**
+ * Strip a single surrounding markdown code fence (``` or ```lang … ```) from a
+ * pasted block. ChatGPT wraps its rephrased reply in a fence; this lets the user
+ * paste the whole thing back without the backticks leaking into the template.
+ */
+export function stripCodeFences(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```[^\n]*\n([\s\S]*?)\n?```$/);
+  return fenced ? fenced[1]!.trim() : trimmed;
+}

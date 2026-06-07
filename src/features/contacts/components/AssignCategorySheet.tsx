@@ -6,6 +6,7 @@ import { Plus, Minus, FolderPlus } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { haptic } from "@/lib/haptics";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { contactsRepo } from "../lib/repository";
 
@@ -30,6 +31,7 @@ export function AssignCategorySheet({
 
   const apply = async (categoryId: string) => {
     setBusy(true);
+    haptic("light");
     try {
       if (mode === "add") {
         await contactsRepo.addToCategory(contactIds, categoryId);

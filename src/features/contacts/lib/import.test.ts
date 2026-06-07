@@ -73,6 +73,33 @@ describe("buildImport", () => {
     expect(second.upserts).toHaveLength(0);
   });
 
+  it("blocks re-import of a previously-removed contact", () => {
+    const first = buildImport(
+      parseVCF("BEGIN:VCARD\nFN:Ramesh\nTEL:9876543210\nEND:VCARD"),
+      [],
+      1000,
+    );
+    // Simulate the contact having been soft-removed (no WhatsApp / out of domain).
+    const removed = first.upserts.map((c) => ({
+      ...c,
+      removed: true,
+      removedAt: 1500,
+    }));
+
+    const second = buildImport(
+      parseVCF(
+        "BEGIN:VCARD\nFN:Ramesh\nTEL:9876543210\nEMAIL:new@example.com\nEND:VCARD",
+      ),
+      removed,
+      2000,
+    );
+    expect(second.summary.blocked).toBe(1);
+    expect(second.summary.imported).toBe(0);
+    expect(second.summary.updated).toBe(0);
+    // The removed record is left untouched — nothing to persist.
+    expect(second.upserts).toHaveLength(0);
+  });
+
   it("merges across multiple files by phone number", () => {
     const fileA = "BEGIN:VCARD\nFN:Anita\nTEL:9886077665\nEND:VCARD";
     const fileB =

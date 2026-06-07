@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Tags, Plus, Send, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { haptic } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -27,6 +28,7 @@ export function CategoriesManager({ embedded = false }: { embedded?: boolean } =
   const create = async () => {
     const name = newName.trim();
     if (!name) return;
+    haptic("light");
     await categoriesRepo.create(name);
     setNewName("");
   };

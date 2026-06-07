@@ -12,7 +12,9 @@ import {
   FolderMinus,
   Send,
   Users,
+  UserMinus,
 } from "lucide-react";
+import { haptic } from "@/lib/haptics";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { VirtualList } from "@/components/ui/virtual-list";
 import type { Contact } from "@/lib/types";
 import { contactsRepo } from "../lib/repository";
-import { filterContacts, selectSearchResults } from "../lib/search";
+import { filterContacts } from "../lib/search";
 import { useSelectionStore } from "../store/selection";
 import { ImportSheet } from "./ImportSheet";
 import { ContactRow } from "./ContactRow";
@@ -33,7 +35,7 @@ const ROW_HEIGHT = 76;
 export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const contacts = useLiveQuery(() => contactsRepo.all(), []);
-  const { query, setQuery, selected, toggle, setSelection, clear, isSelected } =
+  const { query, setQuery, selected, toggle, toggleAll, clear, isSelected } =
     useSelectionStore();
 
   const [importOpen, setImportOpen] = React.useState(false);
@@ -51,8 +53,31 @@ export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = 
   const hasSelection = selectedIds.length > 0;
   const searching = query.trim().length > 0;
 
-  const handleSelectSearchResults = () => {
-    setSelection(selectSearchResults(filtered, query));
+  const filteredIds = React.useMemo(() => filtered.map((c) => c.id), [filtered]);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+
+  const handleToggleAll = () => {
+    haptic("light");
+    toggleAll(filteredIds);
+  };
+
+  // Soft-remove the selected contacts everywhere (no WhatsApp / out of domain).
+  // Recoverable from Settings → Removed contacts.
+  const handleRemove = async () => {
+    const n = selectedIds.length;
+    if (n === 0) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${n} contact${n === 1 ? "" : "s"}? They'll be hidden from all lists and skipped on future imports. You can restore them from Settings → Removed contacts.`,
+      )
+    ) {
+      return;
+    }
+    haptic("warning");
+    await contactsRepo.remove(selectedIds);
+    clear();
   };
 
   const loading = contacts === undefined;
@@ -109,20 +134,25 @@ export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = 
           )}
         </div>
 
-        {searching && (
+        {(contacts?.length ?? 0) > 0 && (
           <div className="mt-2 flex items-center justify-between gap-2">
             <span className="text-sm text-muted-foreground">
-              {filtered.length.toLocaleString()} result
-              {filtered.length === 1 ? "" : "s"}
+              {searching
+                ? `${filtered.length.toLocaleString()} result${filtered.length === 1 ? "" : "s"}`
+                : `${(contacts?.length ?? 0).toLocaleString()} contact${(contacts?.length ?? 0) === 1 ? "" : "s"}`}
             </span>
             <Button
               size="sm"
-              variant="outline"
-              onClick={handleSelectSearchResults}
+              variant={allFilteredSelected ? "secondary" : "outline"}
+              onClick={handleToggleAll}
               disabled={filtered.length === 0}
             >
               <CheckCheck className="h-4 w-4" />
-              Select results
+              {allFilteredSelected
+                ? "Deselect all"
+                : searching
+                  ? "Select all results"
+                  : "Select all"}
             </Button>
           </div>
         )}
@@ -191,18 +221,37 @@ export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = 
               {selectedIds.length}
             </button>
             <div className="ml-auto flex gap-1.5">
-              <Button size="sm" variant="outline" onClick={() => setAssignMode("add")}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAssignMode("add")}
+                aria-label="Add to category"
+              >
                 <FolderPlus className="h-4 w-4" />
-                Add
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setAssignMode("remove")}
+                aria-label="Remove from category"
               >
                 <FolderMinus className="h-4 w-4" />
               </Button>
-              <Button size="sm" onClick={() => setCampaignOpen(true)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRemove}
+                aria-label="Remove contacts"
+              >
+                <UserMinus className="h-4 w-4 text-destructive" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  haptic("light");
+                  setCampaignOpen(true);
+                }}
+              >
                 <Send className="h-4 w-4" />
                 Campaign
               </Button>

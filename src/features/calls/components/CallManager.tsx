@@ -10,19 +10,33 @@ import {
   X,
   CalendarClock,
   CheckSquare,
+  CheckCheck,
+  UserMinus,
+  ListX,
+  UserX,
   Send,
+  ArrowUpDown,
+  Check,
 } from "lucide-react";
+import { haptic } from "@/lib/haptics";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Sheet } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import type { CallEntry, Contact } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { CampaignCreateSheet } from "@/features/campaigns/components/CampaignCreateSheet";
 import { callsRepo } from "../lib/repository";
-import { OUTCOME_META, formatCallTime } from "../lib/display";
+import {
+  OUTCOME_META,
+  formatCallTime,
+  sortCalls,
+  CALL_SORTS,
+  type CallSort,
+} from "../lib/display";
 import { AddToCallSheet } from "./AddToCallSheet";
 import { CallDetailSheet } from "./CallDetailSheet";
 
@@ -38,6 +52,8 @@ export function CallManager() {
   const contacts = useLiveQuery(() => contactsRepo.all(), []);
 
   const [query, setQuery] = React.useState("");
+  const [sort, setSort] = React.useState<CallSort>("recent");
+  const [sortOpen, setSortOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
   const [openContactId, setOpenContactId] = React.useState<string | null>(null);
 
@@ -45,6 +61,7 @@ export function CallManager() {
   const [selectMode, setSelectMode] = React.useState(false);
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [campaignOpen, setCampaignOpen] = React.useState(false);
+  const [removeMenuOpen, setRemoveMenuOpen] = React.useState(false);
 
   const contactMap = React.useMemo(() => {
     const map = new Map<string, Contact>();
@@ -69,6 +86,13 @@ export function CallManager() {
   };
   const phoneFor = (e: CallEntry) => contactMap.get(e.contactId)?.phone ?? "";
 
+  const sorted = React.useMemo(
+    () => sortCalls(filtered, sort, nameFor),
+    // nameFor reads contactMap; recompute when either the list or names change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filtered, sort, contactMap],
+  );
+
   const exitSelect = React.useCallback(() => {
     setSelectMode(false);
     setPicked(new Set());
@@ -81,6 +105,65 @@ export function CallManager() {
       else next.add(id);
       return next;
     });
+
+  const filteredIds = React.useMemo(
+    () => sorted.map((e) => e.contactId),
+    [sorted],
+  );
+  const allPicked =
+    filteredIds.length > 0 && filteredIds.every((id) => picked.has(id));
+
+  const toggleAll = () => {
+    haptic("light");
+    setPicked((prev) => {
+      const all = filteredIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      for (const id of filteredIds) {
+        if (all) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const pluralPicked = picked.size === 1 ? "" : "s";
+
+  // Drop the picked contacts from the call list only — their contact records and
+  // group memberships are untouched, so they can be re-added later.
+  const removeFromCallList = async () => {
+    const ids = [...picked];
+    if (ids.length === 0) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${ids.length} contact${ids.length === 1 ? "" : "s"} from your call list? Their contact details stay — you can add them back anytime.`,
+      )
+    ) {
+      return;
+    }
+    haptic("warning");
+    await Promise.all(ids.map((id) => callsRepo.remove(id)));
+    setRemoveMenuOpen(false);
+    exitSelect();
+  };
+
+  // Soft-remove the picked contacts entirely (no WhatsApp / out of domain).
+  const removeEntirely = async () => {
+    const ids = [...picked];
+    if (ids.length === 0) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${ids.length} contact${ids.length === 1 ? "" : "s"} entirely? They'll be hidden everywhere and skipped on future imports. Restore from Settings → Removed contacts.`,
+      )
+    ) {
+      return;
+    }
+    haptic("warning");
+    await contactsRepo.remove(ids);
+    setRemoveMenuOpen(false);
+    exitSelect();
+  };
 
   const onRowTap = (e: CallEntry) => {
     if (selectMode) togglePick(e.contactId);
@@ -136,6 +219,19 @@ export function CallManager() {
               </button>
             )}
           </div>
+          {(calls?.length ?? 0) > 0 && !selectMode && (
+            <button
+              type="button"
+              onClick={() => {
+                haptic("light");
+                setSortOpen(true);
+              }}
+              aria-label="Sort call list"
+              className="flex min-h-touch shrink-0 items-center justify-center rounded-xl bg-secondary px-3 text-foreground transition-colors hover:bg-secondary/80"
+            >
+              <ArrowUpDown className="h-4 w-4" />
+            </button>
+          )}
           {(calls?.length ?? 0) > 0 && (
             <button
               type="button"
@@ -187,16 +283,24 @@ export function CallManager() {
           />
         ) : (
           <ul className="space-y-2 p-4 pb-nav">
-            {filtered.map((e) => {
+            {sorted.map((e) => {
               const meta = OUTCOME_META[e.outcome];
               const sel = picked.has(e.contactId);
               return (
                 <li key={e.id}>
-                  <button
-                    type="button"
+                  {/* A div (not a button) so the tel: call link can nest legally. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onRowTap(e)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "Enter" || ev.key === " ") {
+                        ev.preventDefault();
+                        onRowTap(e);
+                      }
+                    }}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl border bg-card/80 p-3 text-left shadow-soft transition-all hover:shadow-card",
+                      "flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-card/80 p-3 text-left shadow-soft transition-all hover:shadow-card",
                       sel
                         ? "border-primary/50 ring-1 ring-primary/30"
                         : "border-border/70",
@@ -248,9 +352,25 @@ export function CallManager() {
                         {sel && <CheckSquare className="h-3.5 w-3.5" />}
                       </span>
                     ) : (
-                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      <>
+                        {/* One-tap dial, left of the status badge (Req 4). */}
+                        {phoneFor(e) && (
+                          <a
+                            href={`tel:${phoneFor(e)}`}
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              haptic("medium");
+                            }}
+                            aria-label={`Call ${nameFor(e)}`}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+                          >
+                            <Phone className="h-5 w-5" />
+                          </a>
+                        )}
+                        <Badge variant={meta.variant}>{meta.label}</Badge>
+                      </>
                     )}
-                  </button>
+                  </div>
                 </li>
               );
             })}
@@ -258,22 +378,144 @@ export function CallManager() {
         )}
       </div>
 
-      {/* Selection action bar — create a campaign from the chosen contacts. */}
+      {/* Selection action bar — floats above the bottom nav so it's always in
+          reach (mirrors the Contacts explorer pattern). */}
       {selectMode && (
-        <div className="glass sticky bottom-0 z-20 flex items-center gap-3 border-t border-border/60 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-          <span className="text-sm font-medium text-muted-foreground">
-            {picked.size} selected
-          </span>
-          <Button
-            className="ml-auto"
-            disabled={picked.size === 0}
-            onClick={() => setCampaignOpen(true)}
-          >
-            <Send className="h-4 w-4" />
-            Create campaign
-          </Button>
+        <div className="fixed inset-x-0 bottom-[var(--bottom-nav-gap)] z-40 flex justify-center px-4">
+          <div className="glass flex w-full max-w-md items-center gap-2 rounded-2xl border border-white/60 px-3 py-2 shadow-float animate-in slide-in-from-bottom-2">
+            <button
+              type="button"
+              onClick={exitSelect}
+              className="flex items-center gap-1.5 rounded-xl bg-secondary px-2.5 py-1.5 text-sm font-semibold text-foreground hover:bg-secondary/70"
+            >
+              <X className="h-4 w-4" />
+              {picked.size}
+            </button>
+            <div className="ml-auto flex gap-1.5">
+              <Button
+                size="sm"
+                variant={allPicked ? "secondary" : "outline"}
+                onClick={toggleAll}
+                disabled={filtered.length === 0}
+                aria-label={allPicked ? "Deselect all" : "Select all"}
+              >
+                <CheckCheck className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  haptic("light");
+                  setRemoveMenuOpen(true);
+                }}
+                disabled={picked.size === 0}
+                aria-label="Remove contacts"
+              >
+                <UserMinus className="h-4 w-4 text-destructive" />
+              </Button>
+              <Button
+                size="sm"
+                disabled={picked.size === 0}
+                onClick={() => {
+                  haptic("light");
+                  setCampaignOpen(true);
+                }}
+              >
+                <Send className="h-4 w-4" />
+                Campaign
+              </Button>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Two flavours of remove for the selection: drop from the call list only,
+          or soft-remove the contacts everywhere (Req 3). */}
+      <Sheet
+        open={removeMenuOpen}
+        onClose={() => setRemoveMenuOpen(false)}
+        title={`Remove ${picked.size} contact${pluralPicked}`}
+        description="Choose how far the removal should go."
+      >
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={removeFromCallList}
+            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+          >
+            <ListX className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-foreground">
+                Remove from call list
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Takes them off this list only. Contact details and groups stay —
+                add them back anytime.
+              </span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={removeEntirely}
+            className="flex w-full items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-left transition-colors hover:bg-destructive/10"
+          >
+            <UserX className="h-5 w-5 shrink-0 text-destructive" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-destructive">
+                Remove contact entirely
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Hides them everywhere and skips them on future imports. Restorable
+                from Settings → Removed contacts.
+              </span>
+            </span>
+          </button>
+        </div>
+      </Sheet>
+
+      {/* Choose how the call list is ordered. */}
+      <Sheet
+        open={sortOpen}
+        onClose={() => setSortOpen(false)}
+        title="Sort call list"
+        description="Order your contacts the way that suits your day."
+      >
+        <div className="space-y-2">
+          {CALL_SORTS.map((s) => {
+            const active = s.value === sort;
+            return (
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => {
+                  haptic("light");
+                  setSort(s.value);
+                  setSortOpen(false);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors",
+                  active
+                    ? "border-primary/50 bg-accent/60 ring-1 ring-primary/30"
+                    : "border-border/70 bg-card hover:bg-secondary",
+                )}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-foreground">
+                    {s.label}
+                  </span>
+                  <span className="block text-sm text-muted-foreground">
+                    {s.hint}
+                  </span>
+                </span>
+                {active && (
+                  <Check className="h-5 w-5 shrink-0 text-primary" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Sheet>
 
       <AddToCallSheet open={addOpen} onClose={() => setAddOpen(false)} />
 

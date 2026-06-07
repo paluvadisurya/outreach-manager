@@ -13,13 +13,15 @@ import {
   CalendarClock,
   Trash2,
   MessageCircle,
-  Sparkles,
+  Megaphone,
   ChevronRight,
+  UserX,
 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ExpandableText } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import type { CallOutcome } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
@@ -88,8 +90,6 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
   const [creatingBusy, setCreatingBusy] = React.useState(false);
   const [schedule, setSchedule] = React.useState(defaultSchedule);
   const [scheduleNote, setScheduleNote] = React.useState("");
-  const [notes, setNotes] = React.useState("");
-  const [notesDirty, setNotesDirty] = React.useState(false);
 
   // Reset transient editor state whenever a different contact opens.
   React.useEffect(() => {
@@ -97,18 +97,15 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
     setCreating(false);
     setSchedule(defaultSchedule());
     setScheduleNote("");
-    setNotesDirty(false);
   }, [contactId]);
-
-  React.useEffect(() => {
-    if (!notesDirty) setNotes(entry?.notes ?? "");
-  }, [entry?.notes, notesDirty]);
 
   const name = contact?.fullName || contact?.phone || "";
   const phone = contact?.phone ?? "";
 
   const setOutcome = (outcome: CallOutcome) => {
-    if (contactId) void callsRepo.setOutcome(contactId, outcome);
+    if (!contactId) return;
+    haptic(outcome === "called" ? "success" : "light");
+    void callsRepo.setOutcome(contactId, outcome);
   };
 
   const toggleCampaign = (campaignId: string) => {
@@ -140,11 +137,6 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
     }
   };
 
-  const saveNotes = () => {
-    if (contactId && notesDirty) void callsRepo.setNotes(contactId, notes);
-    setNotesDirty(false);
-  };
-
   const scheduleAt = (): number | null => {
     const ms = new Date(`${schedule.date}T${schedule.time}`).getTime();
     return Number.isNaN(ms) ? null : ms;
@@ -170,13 +162,27 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
     onClose();
   };
 
+  // Remove as a contact entirely (no WhatsApp / out of domain): hides them
+  // everywhere and skips them on future imports. Recoverable from Settings.
+  const removeContact = async () => {
+    if (!contactId) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${name || "this contact"} entirely? They'll be hidden from all lists and skipped on future imports. Restore from Settings → Removed contacts.`,
+      )
+    ) {
+      return;
+    }
+    haptic("warning");
+    await contactsRepo.remove([contactId]);
+    onClose();
+  };
+
   return (
     <Sheet
       open={contactId !== null}
-      onClose={() => {
-        saveNotes();
-        onClose();
-      }}
+      onClose={onClose}
       title={name || "Contact"}
       description={phone || undefined}
       footer={
@@ -198,7 +204,11 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
               );
             })}
           </div>
-          <a href={phone ? `tel:${phone}` : undefined} className="block">
+          <a
+            href={phone ? `tel:${phone}` : undefined}
+            className="block"
+            onClick={() => phone && haptic("medium")}
+          >
             <Button className="h-14 w-full text-base" disabled={!phone}>
               <Phone className="h-5 w-5" />
               Call
@@ -243,7 +253,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="h-4 w-4" />
+                      <Megaphone className="h-4 w-4" />
                       New
                     </>
                   )}
@@ -289,7 +299,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                       onClick={() => createCampaign(t.id, t.name)}
                       className="flex w-full items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2.5 text-left transition-colors hover:bg-secondary disabled:opacity-50"
                     >
-                      <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                      <Megaphone className="h-4 w-4 shrink-0 text-primary" />
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                         {t.name}
                       </span>
@@ -354,8 +364,14 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                     </div>
                     {tp.message ? (
                       <div className="rounded-2xl border border-border/60 bg-[#e6ddd3] p-2.5">
-                        <div className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-tl-md bg-[#dcf8c6] px-3 py-2 text-sm leading-relaxed text-[#111b21] shadow-sm">
-                          {tp.message}
+                        <div className="max-w-[92%] rounded-2xl rounded-tl-md bg-[#dcf8c6] px-3 py-2 shadow-sm">
+                          <ExpandableText
+                            text={tp.message}
+                            lines={5}
+                            className="text-sm leading-relaxed text-[#111b21]"
+                            toggleClassName="text-[#075e54]"
+                            moreLabel="Show more"
+                          />
                         </div>
                       </div>
                     ) : (
@@ -444,29 +460,24 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
             </p>
           </section>
 
-          {/* Notes */}
-          <section className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">Notes</h3>
-            <Textarea
-              value={notes}
-              onChange={(e) => {
-                setNotes(e.target.value);
-                setNotesDirty(true);
-              }}
-              onBlur={saveNotes}
-              placeholder="Anything to remember about this contact…"
-              className="min-h-[90px]"
-            />
-          </section>
-
-          <button
-            type="button"
-            onClick={remove}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-4 w-4" />
-            Remove from call list
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={remove}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Remove from call list
+            </button>
+            <button
+              type="button"
+              onClick={removeContact}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 py-3 text-sm font-semibold text-destructive hover:bg-destructive/10"
+            >
+              <UserX className="h-4 w-4" />
+              Remove contact entirely
+            </button>
+          </div>
         </div>
       )}
     </Sheet>
