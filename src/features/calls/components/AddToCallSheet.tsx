@@ -185,7 +185,7 @@ export function AddToCallSheet({ open, onClose }: AddToCallSheetProps) {
                 type="button"
                 disabled={busy}
                 onClick={() => addCategory(c.id)}
-                className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card px-4 text-left hover:bg-secondary disabled:opacity-50"
+                className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card px-4 text-left hover:bg-secondary disabled:opacity-50"
               >
                 <span className="flex items-center gap-2">
                   <Tags className="h-4 w-4 text-muted-foreground" />
@@ -250,7 +250,7 @@ export function AddToCallSheet({ open, onClose }: AddToCallSheetProps) {
                           "flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors",
                           sel
                             ? "border-primary/40 bg-accent"
-                            : "border-border/70 bg-card hover:bg-secondary",
+                            : "border-hairline bg-card hover:bg-secondary",
                         )}
                       >
                         <span
@@ -298,7 +298,7 @@ export function AddToCallSheet({ open, onClose }: AddToCallSheetProps) {
                 type="button"
                 disabled={busy}
                 onClick={() => addCampaign(c.id)}
-                className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card px-4 text-left hover:bg-secondary disabled:opacity-50"
+                className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card px-4 text-left hover:bg-secondary disabled:opacity-50"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-foreground">

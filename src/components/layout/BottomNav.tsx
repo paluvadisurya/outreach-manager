@@ -37,7 +37,7 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pt-2 pb-[max(0.55rem,env(safe-area-inset-bottom))]"
     >
-      <ul className="flex w-full max-w-lg items-stretch justify-between gap-0.5 rounded-[1.75rem] border border-border bg-card p-1.5 shadow-float">
+      <ul className="glass flex w-full max-w-lg items-stretch justify-between gap-0.5 rounded-[1.9rem] border border-white/60 p-1.5 shadow-float ring-1 ring-black/[0.03]">
         {TABS.map((tab) => {
           const prefixes = [tab.href, ...(tab.match ?? [])];
           const active = prefixes.some(
@@ -50,20 +50,20 @@ export function BottomNav() {
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[1.35rem] px-1 py-2 text-[11px] font-medium leading-none transition-all duration-200",
+                  "flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-[1.45rem] px-1 py-2 text-[11px] font-medium leading-none transition-all duration-200 active:scale-95",
                   active
-                    ? "bg-accent text-accent-foreground shadow-soft"
-                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground",
+                    ? "bg-accent text-accent-foreground shadow-soft ring-1 ring-white/50"
+                    : "text-muted-foreground hover:bg-white/50 hover:text-foreground",
                 )}
               >
                 <Icon
                   className={cn(
-                    "h-6 w-6 transition-transform",
+                    "h-6 w-6 transition-transform duration-200",
                     active ? "scale-110 stroke-[2.4]" : "stroke-2",
                   )}
                   aria-hidden
                 />
-                <span className={cn(active && "font-semibold")}>
+                <span className={cn("transition-all", active && "font-semibold")}>
                   {tab.label}
                 </span>
               </Link>

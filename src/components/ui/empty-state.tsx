@@ -25,20 +25,26 @@ export function EmptyState({
         className,
       )}
     >
-      <Icon
-        className="mb-5 h-12 w-12"
-        strokeWidth={1.5}
-        style={{ color: "hsl(var(--section))" }}
-        aria-hidden
-      />
+      {/* A glowing gradient "app tile" behind the icon — the same section
+          identity treatment as the header bubble, for a cohesive premium feel. */}
+      <div className="relative mb-6 flex h-20 w-20 items-center justify-center">
+        <div
+          className="absolute inset-0 rounded-[2rem] opacity-20 blur-2xl"
+          style={{ backgroundColor: "hsl(var(--section))" }}
+          aria-hidden
+        />
+        <div className="section-gradient relative flex h-16 w-16 items-center justify-center rounded-[1.4rem] shadow-soft ring-1 ring-white/40">
+          <Icon className="h-8 w-8 text-white" strokeWidth={1.75} aria-hidden />
+        </div>
+      </div>
 
-      <h3 className="text-lg font-bold text-foreground">{title}</h3>
+      <h3 className="text-lg font-bold tracking-tight text-foreground">{title}</h3>
       {description && (
         <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-muted-foreground">
           {description}
         </p>
       )}
-      {action && <div className="mt-6">{action}</div>}
+      {action && <div className="mt-7">{action}</div>}
     </div>
   );
 }

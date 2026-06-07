@@ -29,13 +29,15 @@ export function Switch({
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50",
-        checked ? "bg-primary" : "bg-input",
+        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50",
+        checked
+          ? "bg-primary shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]"
+          : "bg-input",
       )}
     >
       <span
         className={cn(
-          "inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform",
+          "inline-block h-5 w-5 transform rounded-full bg-white shadow-[0_1px_2px_rgba(16,24,40,0.25),0_2px_4px_rgba(16,24,40,0.12)] transition-transform duration-200 ease-out",
           checked ? "translate-x-6" : "translate-x-1",
         )}
       />

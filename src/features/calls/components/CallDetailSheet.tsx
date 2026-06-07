@@ -297,7 +297,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                       type="button"
                       disabled={creatingBusy}
                       onClick={() => createCampaign(t.id, t.name)}
-                      className="flex w-full items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2.5 text-left transition-colors hover:bg-secondary disabled:opacity-50"
+                      className="flex w-full items-center gap-2 rounded-xl border border-hairline bg-card px-3 py-2.5 text-left transition-colors hover:bg-secondary disabled:opacity-50"
                     >
                       <Megaphone className="h-4 w-4 shrink-0 text-primary" />
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground">
@@ -347,7 +347,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                 {talkingPoints!.map((tp) => (
                   <div
                     key={tp.id}
-                    className="rounded-2xl border border-border/70 bg-card/80 p-3 shadow-soft"
+                    className="rounded-2xl border border-hairline bg-card p-3 shadow-soft"
                   >
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-semibold text-foreground">
@@ -387,7 +387,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
           </section>
 
           {/* Schedule next call */}
-          <section className="space-y-2 rounded-2xl border border-border/70 bg-card/80 p-3 shadow-soft">
+          <section className="space-y-2 rounded-2xl border border-hairline bg-card p-3 shadow-soft">
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
               <CalendarClock className="h-4 w-4 text-primary" />
               Next call
@@ -423,7 +423,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                 onChange={(e) =>
                   setSchedule((s) => ({ ...s, date: e.target.value }))
                 }
-                className="min-h-touch flex-1 rounded-xl border border-input bg-card px-3 text-base text-foreground"
+                className="min-h-touch flex-1 rounded-2xl border border-hairline bg-card px-3.5 text-base text-foreground shadow-soft transition-all focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/15"
               />
               <input
                 type="time"
@@ -431,7 +431,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                 onChange={(e) =>
                   setSchedule((s) => ({ ...s, time: e.target.value }))
                 }
-                className="min-h-touch rounded-xl border border-input bg-card px-3 text-base text-foreground"
+                className="min-h-touch rounded-2xl border border-hairline bg-card px-3.5 text-base text-foreground shadow-soft transition-all focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/15"
               />
             </div>
             <input
@@ -439,7 +439,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
               value={scheduleNote}
               onChange={(e) => setScheduleNote(e.target.value)}
               placeholder="What's this call about? (optional)"
-              className="min-h-touch w-full rounded-xl border border-input bg-card px-3 text-base text-foreground placeholder:text-muted-foreground"
+              className="min-h-touch w-full rounded-2xl border border-hairline bg-card px-3.5 text-base text-foreground shadow-soft transition-all focus-visible:border-ring/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/15 placeholder:text-muted-foreground"
             />
             <div className="flex gap-2">
               <Button

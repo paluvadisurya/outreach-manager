@@ -87,16 +87,18 @@ export function SettingsManager() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-bold text-foreground">Settings</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Settings</h1>
         </div>
       </header>
 
       <div className="space-y-6 p-4 pb-[calc(env(safe-area-inset-bottom)+2.5rem)]">
         {/* First name extraction */}
-        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-          <div className="mb-3 flex items-center gap-2">
-            <UserRound className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <h2 className="font-bold text-foreground">First name</h2>
+        <section className="rounded-3xl border border-hairline bg-card p-5 shadow-card">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <UserRound className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+            </span>
+            <h2 className="font-bold tracking-tight text-foreground">First name</h2>
           </div>
 
           <label className="flex items-start justify-between gap-4 py-2">
@@ -135,7 +137,7 @@ export function SettingsManager() {
           )}
 
           {/* Live examples */}
-          <div className="mt-3 space-y-1.5 rounded-xl bg-secondary/50 p-3">
+          <div className="mt-3 space-y-1.5 rounded-2xl bg-elevated p-3.5 ring-1 ring-inset ring-hairline">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Examples
             </p>
@@ -151,10 +153,12 @@ export function SettingsManager() {
         </section>
 
         {/* WhatsApp app preference */}
-        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-          <div className="mb-3 flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <h2 className="font-bold text-foreground">WhatsApp app</h2>
+        <section className="rounded-3xl border border-hairline bg-card p-5 shadow-card">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <MessageCircle className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+            </span>
+            <h2 className="font-bold tracking-tight text-foreground">WhatsApp app</h2>
           </div>
           <p className="mb-3 text-sm text-muted-foreground">
             Which app the Send button opens by default. The send screen always shows a
@@ -169,10 +173,10 @@ export function SettingsManager() {
                   type="button"
                   onClick={() => update({ whatsappApp: opt.value })}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
+                    "flex w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all active:scale-[0.99]",
                     selected
-                      ? "border-primary bg-accent"
-                      : "border-input bg-card hover:bg-secondary",
+                      ? "border-primary/40 bg-accent ring-1 ring-primary/15"
+                      : "border-hairline bg-card hover:bg-secondary",
                   )}
                 >
                   <span className="min-w-0">
@@ -213,10 +217,12 @@ export function SettingsManager() {
         <DataBackupSection />
 
         {/* Removed contacts — restore mistakes or delete for good */}
-        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-          <div className="mb-3 flex items-center gap-2">
-            <UserX className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <h2 className="font-bold text-foreground">Removed contacts</h2>
+        <section className="rounded-3xl border border-hairline bg-card p-5 shadow-card">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <UserX className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+            </span>
+            <h2 className="font-bold tracking-tight text-foreground">Removed contacts</h2>
           </div>
           <p className="mb-3 text-sm text-muted-foreground">
             Contacts you removed (no WhatsApp / out of domain). They&apos;re hidden
@@ -224,7 +230,7 @@ export function SettingsManager() {
             delete it for good.
           </p>
           {removed.length === 0 ? (
-            <p className="rounded-xl bg-secondary/50 p-3 text-sm text-muted-foreground">
+            <p className="rounded-2xl bg-elevated p-3.5 ring-1 ring-inset ring-hairline text-sm text-muted-foreground">
               No removed contacts.
             </p>
           ) : (
@@ -234,7 +240,7 @@ export function SettingsManager() {
                 return (
                   <li
                     key={c.id}
-                    className="flex items-center gap-2 rounded-xl border border-border/70 bg-card p-2.5"
+                    className="flex items-center gap-2 rounded-2xl border border-hairline bg-card p-2.5 shadow-soft"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium text-foreground">
@@ -268,10 +274,12 @@ export function SettingsManager() {
         </section>
 
         {/* Phone normalization (informational) */}
-        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-soft">
-          <div className="mb-2 flex items-center gap-2">
-            <Phone className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <h2 className="font-bold text-foreground">Phone numbers</h2>
+        <section className="rounded-3xl border border-hairline bg-card p-5 shadow-card">
+          <div className="mb-3 flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <Phone className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+            </span>
+            <h2 className="font-bold tracking-tight text-foreground">Phone numbers</h2>
           </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Numbers are standardized to Indian E.164 format on import. Existing
@@ -297,7 +305,7 @@ function Stepper({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+    <div className="flex items-center gap-1 rounded-2xl border border-hairline bg-card p-1 shadow-soft">
       <button
         type="button"
         onClick={() => onChange(Math.max(min, value - 1))}

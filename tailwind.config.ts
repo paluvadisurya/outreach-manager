@@ -21,16 +21,22 @@ const config: Config = {
         ],
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(16,24,40,0.04), 0 4px 16px rgba(16,24,40,0.06)",
-        card: "0 1px 3px rgba(16,24,40,0.06), 0 8px 24px rgba(16,24,40,0.05)",
-        float: "0 8px 30px rgba(16,24,40,0.12), 0 2px 8px rgba(16,24,40,0.08)",
+        // Premium, multi-layer shadows: soft, diffuse, with negative spread so
+        // surfaces read as gently lifted rather than boxed.
+        soft: "0 1px 2px rgba(16,24,40,0.04), 0 4px 12px -2px rgba(16,24,40,0.05)",
+        card: "0 1px 2px rgba(16,24,40,0.03), 0 6px 16px -6px rgba(16,24,40,0.06), 0 14px 36px -12px rgba(16,24,40,0.05)",
+        float:
+          "0 8px 24px -8px rgba(16,24,40,0.14), 0 18px 48px -16px rgba(16,24,40,0.16)",
       },
       colors: {
         border: "hsl(var(--border))",
+        hairline: "hsl(var(--hairline))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        elevated: "hsl(var(--elevated))",
+        warning: "hsl(var(--warning))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",

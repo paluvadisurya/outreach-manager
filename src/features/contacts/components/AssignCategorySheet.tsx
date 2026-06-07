@@ -102,13 +102,18 @@ export function AssignCategorySheet({
               type="button"
               disabled={busy}
               onClick={() => apply(c.id)}
-              className="flex min-h-touch w-full items-center justify-between rounded-lg border border-input bg-card px-3 text-left hover:bg-secondary"
+              className="flex min-h-touch w-full items-center justify-between rounded-2xl border border-hairline bg-card px-3.5 text-left shadow-soft transition-all hover:bg-secondary active:scale-[0.99] disabled:opacity-50"
             >
-              <span className="flex items-center gap-2 truncate">
+              <span className="flex items-center gap-2.5 truncate">
                 <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: c.color }}
-                />
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ring-black/[0.06]"
+                  style={{ backgroundColor: `${c.color}1f` }}
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: c.color }}
+                  />
+                </span>
                 <span className="truncate text-sm text-foreground">
                   {c.name}
                 </span>

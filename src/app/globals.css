@@ -3,53 +3,61 @@
 
 @layer base {
   :root {
-    /* Soft, airy light theme with pastel accents and high text contrast. */
-    --background: 240 30% 99%;
-    --foreground: 224 30% 16%;
+    /* Refined, premium light theme: soft cool-neutral surfaces, crisp hairline
+       borders, and pastel section accents. Tuned for high text contrast and a
+       calm, fintech-grade feel (Coinbase / Apple Wallet / Linear). */
+    --background: 228 32% 98%;
+    --foreground: 224 39% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 224 30% 16%;
+    --card-foreground: 224 39% 11%;
+    /* A faintly tinted surface for nested fills (segmented controls, chips). */
+    --elevated: 228 36% 96.5%;
 
-    /* Primary: a confident, slightly desaturated emerald. */
-    --primary: 158 64% 40%;
+    /* Primary: confident, slightly desaturated emerald (WhatsApp brand). */
+    --primary: 158 64% 39%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 225 32% 96%;
-    --secondary-foreground: 224 25% 27%;
+    --secondary: 226 34% 96%;
+    --secondary-foreground: 224 28% 24%;
 
-    --muted: 225 30% 96%;
-    --muted-foreground: 222 12% 46%;
+    --muted: 226 32% 96%;
+    --muted-foreground: 223 14% 44%;
 
     /* Accent: pastel mint used for soft highlights and selected states. */
     --accent: 158 55% 94%;
-    --accent-foreground: 160 60% 26%;
+    --accent-foreground: 160 60% 24%;
 
-    --success: 158 64% 40%;
+    --success: 158 64% 39%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 354 70% 54%;
+    --warning: 32 95% 44%;
+
+    --destructive: 354 72% 53%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 225 25% 91%;
-    --input: 225 25% 89%;
+    --border: 226 28% 92%;
+    /* A near-invisible hairline used for crisp card edges over the page wash. */
+    --hairline: 225 30% 90%;
+    --input: 225 26% 89%;
     --ring: 158 64% 42%;
 
-    --radius: 1rem;
+    --radius: 1.15rem;
 
-    /* Ambient page wash — soft pastel gradient behind everything. */
+    /* Ambient page wash — soft pastel mesh behind everything. */
     --wash-1: 250 90% 97%;
     --wash-2: 165 70% 96%;
 
     /* Per-section identity colors (overridden per route by the theme
-       controller). Default to the Contacts/emerald section. Used for the header
-       icon bubble gradient. */
+       controller). Default to the People/emerald section. Drives the header
+       icon bubble gradient and section-tinted accents. */
     --section: 158 64% 40%;
     --section-2: 168 70% 45%;
 
     /* Clearance for the floating bottom nav, including the iOS home-indicator
        safe area. Single source of truth for page bottom padding so content
        never hides behind (or collides with) the nav. */
-    --bottom-nav-gap: calc(env(safe-area-inset-bottom) + 5.5rem);
+    --bottom-nav-gap: calc(env(safe-area-inset-bottom) + 5.75rem);
   }
 
   * {
@@ -63,11 +71,20 @@
   body {
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -moz-osx-font-smoothing: grayscale;
+    /* Inter character alternates + a hair of negative tracking for a tighter,
+       more premium read at body sizes. */
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    letter-spacing: -0.011em;
     background-color: hsl(var(--background));
     -webkit-tap-highlight-color: transparent;
     /* Improves tap responsiveness and avoids the 300ms delay on touch. */
     touch-action: manipulation;
+  }
+
+  /* Tighten tracking on display text for that crisp, modern-app headline feel. */
+  h1, h2, h3 {
+    letter-spacing: -0.022em;
   }
 
   /*
@@ -83,15 +100,25 @@
     z-index: -1;
     pointer-events: none;
     background-image: radial-gradient(
-        1200px 600px at 100% -10%,
-        hsl(var(--wash-1) / 0.7),
-        transparent 60%
+        1100px 560px at 108% -8%,
+        hsl(var(--wash-1) / 0.65),
+        transparent 58%
       ),
       radial-gradient(
-        1000px 600px at -10% 0%,
-        hsl(var(--wash-2) / 0.6),
+        950px 560px at -12% 2%,
+        hsl(var(--wash-2) / 0.55),
         transparent 55%
+      ),
+      radial-gradient(
+        700px 700px at 50% 118%,
+        hsl(var(--wash-1) / 0.4),
+        transparent 60%
       );
+  }
+
+  /* Brand-tinted text selection. */
+  ::selection {
+    background-color: hsl(var(--section) / 0.18);
   }
 
   /* Prevent iOS Safari from zooming on input focus (font-size >= 16px). */
@@ -115,9 +142,29 @@
 }
 
 @utility glass {
-  background-color: hsl(var(--card) / 0.9);
+  background-color: hsl(var(--card) / 0.72);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* A premium elevated card: white surface, crisp hairline edge, soft layered
+   shadow, and a faint top-light gradient that reads as depth. */
+@utility surface {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--hairline));
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 6px 16px -6px rgba(16, 24, 40, 0.06),
+    0 14px 36px -12px rgba(16, 24, 40, 0.05);
+}
+
+/* The section identity gradient — used for header/empty-state icon bubbles. */
+@utility section-gradient {
+  background-image: linear-gradient(
+    140deg,
+    hsl(var(--section)),
+    hsl(var(--section-2))
+  );
 }
 
 @utility no-scrollbar {
@@ -125,5 +172,29 @@
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@layer utilities {
+  /* Subtle entrance for cards/list items — opt-in, GPU-friendly. */
+  @keyframes fade-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-rise {
+    animation: fade-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-rise {
+      animation: none;
+    }
   }
 }

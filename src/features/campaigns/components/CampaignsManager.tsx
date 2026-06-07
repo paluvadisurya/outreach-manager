@@ -50,12 +50,17 @@ export function CampaignsManager() {
           <button
             type="button"
             onClick={() => router.push(`/campaigns/${resumable.campaign.id}`)}
-            className="flex w-full items-center gap-3 rounded-2xl border border-primary/20 bg-accent p-4 text-left shadow-soft transition-all hover:shadow-card"
+            className="flex w-full items-center gap-3.5 rounded-3xl border border-hairline bg-card p-3.5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-float active:scale-[0.99]"
           >
-            <Play className="h-6 w-6 shrink-0 text-primary" aria-hidden />
+            <span
+              className="section-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-soft ring-1 ring-white/30"
+              aria-hidden
+            >
+              <Play className="h-5 w-5" fill="currentColor" />
+            </span>
 
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-accent-foreground">
+              <span className="block text-xs font-semibold uppercase tracking-wide text-[hsl(var(--section))]">
                 Resume campaign
               </span>
               <span className="block truncate font-semibold text-foreground">
@@ -65,7 +70,7 @@ export function CampaignsManager() {
                 {resumable.progress.processed} of {resumable.progress.total} done
               </span>
             </span>
-            <ChevronRight className="h-5 w-5 shrink-0 text-primary" />
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
           </button>
         </div>
       )}
@@ -89,7 +94,7 @@ export function CampaignsManager() {
               <button
                 type="button"
                 onClick={() => router.push(`/campaigns/${campaign.id}`)}
-                className="w-full rounded-2xl border border-border/70 bg-card/80 p-4 text-left shadow-soft transition-all hover:shadow-card"
+                className="w-full rounded-3xl border border-hairline bg-card p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-float active:scale-[0.99]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate font-semibold text-foreground">

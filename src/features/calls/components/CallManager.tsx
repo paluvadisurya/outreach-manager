@@ -300,10 +300,10 @@ export function CallManager() {
                       }
                     }}
                     className={cn(
-                      "flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-card/80 p-3 text-left shadow-soft transition-all hover:shadow-card",
+                      "flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-card p-3 text-left shadow-soft transition-all hover:shadow-card active:scale-[0.99]",
                       sel
-                        ? "border-primary/50 ring-1 ring-primary/30"
-                        : "border-border/70",
+                        ? "border-primary/40 ring-1 ring-primary/25"
+                        : "border-hairline",
                     )}
                   >
                     <span
@@ -441,7 +441,7 @@ export function CallManager() {
           <button
             type="button"
             onClick={removeFromCallList}
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 text-left transition-colors hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left shadow-soft transition-all hover:bg-secondary active:scale-[0.99]"
           >
             <ListX className="h-5 w-5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -494,10 +494,10 @@ export function CallManager() {
                   setSortOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors",
+                  "flex w-full items-center gap-3 rounded-2xl border p-3 text-left shadow-soft transition-all active:scale-[0.99]",
                   active
-                    ? "border-primary/50 bg-accent/60 ring-1 ring-primary/30"
-                    : "border-border/70 bg-card hover:bg-secondary",
+                    ? "border-primary/40 bg-accent ring-1 ring-primary/20"
+                    : "border-hairline bg-card hover:bg-secondary",
                 )}
               >
                 <span className="min-w-0 flex-1">

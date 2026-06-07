@@ -35,7 +35,7 @@ export function Collapsible({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-soft transition-colors hover:bg-secondary/40"
+        className="flex w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card px-4 py-3.5 shadow-soft transition-all hover:bg-secondary/40 active:scale-[0.99]"
       >
         <span className="flex min-w-0 items-center gap-2 font-semibold text-foreground">
           {Icon && <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />}

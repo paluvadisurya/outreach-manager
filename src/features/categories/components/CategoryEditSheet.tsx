@@ -319,7 +319,7 @@ function MemberRow({
     <li
       className={cn(
         "flex items-center gap-3 rounded-2xl border p-3 transition-colors",
-        selected ? "border-primary/40 bg-accent" : "border-border/70 bg-card",
+        selected ? "border-primary/40 bg-accent" : "border-hairline bg-card",
       )}
     >
       <button

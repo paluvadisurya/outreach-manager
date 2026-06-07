@@ -227,7 +227,7 @@ export function CalendarManager() {
                 })
               }
               aria-expanded={calendarOpen}
-              className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-soft transition-colors hover:bg-secondary/40"
+              className="flex w-full items-center justify-between rounded-2xl border border-hairline bg-card px-4 py-3.5 shadow-soft transition-all hover:bg-secondary/40 active:scale-[0.99]"
             >
               <span className="flex items-center gap-2 font-semibold text-foreground">
                 <CalendarDays className="h-5 w-5 text-muted-foreground" />
@@ -266,7 +266,7 @@ export function CalendarManager() {
                 </button>
               </div>
               {dayEntries.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
+                <p className="rounded-2xl border border-dashed border-hairline px-4 py-6 text-center text-sm text-muted-foreground">
                   No calls scheduled for this day.
                 </p>
               ) : (
@@ -403,8 +403,8 @@ function AgendaRow({
   return (
     <li
       className={cn(
-        "rounded-2xl border bg-card/80 p-3 shadow-soft transition-colors",
-        selected ? "border-primary/50 ring-1 ring-primary/30" : "border-border/70",
+        "rounded-2xl border bg-card p-3 shadow-soft transition-all",
+        selected ? "border-primary/40 ring-1 ring-primary/25" : "border-hairline",
       )}
     >
       <button
