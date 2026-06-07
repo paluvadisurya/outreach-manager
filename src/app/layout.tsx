@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { SectionThemeController } from "@/components/layout/SectionThemeController";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -50,6 +51,7 @@ export default function RootLayout({
         <SectionThemeController />
         <div className="mx-auto min-h-dvh max-w-lg">{children}</div>
         <ServiceWorkerRegistrar />
+        <Analytics />
       </body>
     </html>
   );
