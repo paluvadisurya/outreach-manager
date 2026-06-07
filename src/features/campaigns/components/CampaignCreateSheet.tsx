@@ -282,7 +282,7 @@ export function CampaignCreateSheet({
         {preview && (
           <Field label="Preview">
             <div className="rounded-2xl border border-hairline bg-elevated p-3.5 text-sm text-foreground ring-1 ring-inset ring-hairline">
-              <ExpandableText text={preview.text || "—"} lines={6} />
+              <ExpandableText text={preview.text || "-"} lines={6} />
             </div>
           </Field>
         )}

@@ -323,7 +323,7 @@ export function DataBackupSection() {
         <div className="flex items-start gap-2 rounded-2xl bg-destructive/10 p-3.5 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            Export a backup first if you might want this data again — this can't
+            Export a backup first if you might want this data again. This can't
             be undone.
           </span>
         </div>

@@ -63,7 +63,7 @@ export function BackupButton() {
   const title = busy
     ? "Saving backup…"
     : dirty
-      ? "Unsaved changes — tap to save a backup"
+      ? "Unsaved changes, tap to save a backup"
       : last
         ? `Backed up ${ago(last.at)}`
         : "Save a backup";

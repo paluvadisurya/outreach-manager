@@ -3,13 +3,15 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Tags, Users } from "lucide-react";
+import { Tags, Users, ListChecks } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { CategoriesManager } from "@/features/categories/components/CategoriesManager";
 import { ContactsExplorer } from "@/features/contacts/components/ContactsExplorer";
+import { CleanupTriage } from "@/features/contacts/components/CleanupTriage";
 
 type Sub = "categories" | "contacts";
 
@@ -23,6 +25,7 @@ export function PeopleManager() {
   const [sub, setSub] = React.useState<Sub>(() =>
     searchParams.get("view") === "contacts" ? "contacts" : "categories",
   );
+  const [cleanupOpen, setCleanupOpen] = React.useState(false);
 
   const categories = useLiveQuery(() => categoriesRepo.all(), []);
   const contacts = useLiveQuery(() => contactsRepo.all(), []);
@@ -50,7 +53,7 @@ export function PeopleManager() {
       />
 
       {/* Segmented sub-tabs */}
-      <div className="px-5 pb-3 pt-1">
+      <div className="px-5 py-3">
         <div className="flex gap-1 rounded-2xl bg-elevated p-1 ring-1 ring-inset ring-hairline">
           {tabs.map((t) => {
             const active = sub === t.key;
@@ -84,6 +87,26 @@ export function PeopleManager() {
           <CategoriesManager embedded />
         )}
       </div>
+
+      {/* Cleanup lives as a floating action over the Categories view only, clear
+          of the bottom nav (via --bottom-nav-gap), so organising is one tap away
+          without crowding the header. */}
+      {!isContacts && (
+        <button
+          type="button"
+          onClick={() => {
+            haptic("light");
+            setCleanupOpen(true);
+          }}
+          aria-label="Clean up contacts"
+          className="fixed bottom-[var(--bottom-nav-gap)] right-4 z-40 flex min-h-touch items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-float transition-transform active:scale-95"
+        >
+          <ListChecks className="h-5 w-5" />
+          Clean up
+        </button>
+      )}
+
+      <CleanupTriage open={cleanupOpen} onClose={() => setCleanupOpen(false)} />
     </div>
   );
 }

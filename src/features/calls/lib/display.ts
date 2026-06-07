@@ -19,7 +19,7 @@ export const CALL_SORTS: { value: CallSort; label: string; hint: string }[] = [
   { value: "recent", label: "Recent activity", hint: "Latest change first" },
   { value: "upcoming", label: "Upcoming call", hint: "Soonest scheduled first" },
   { value: "logged", label: "Last call logged", hint: "Most recent outcome first" },
-  { value: "name", label: "Name (A–Z)", hint: "Alphabetical" },
+  { value: "name", label: "Name (A-Z)", hint: "Alphabetical" },
   { value: "added", label: "Recently added", hint: "Newest on the list first" },
 ];
 
@@ -57,6 +57,28 @@ export function sortCalls(
     default:
       return list.sort((a, b) => b.updatedAt - a.updatedAt);
   }
+}
+
+/**
+ * Recompute an entry's derived state from its history alone — the single source
+ * of truth after a log is edited or deleted. `attempts` counts only real call
+ * attempts (`called`/`no_answer`); the current `outcome` and `lastOutcomeAt`
+ * mirror the latest log, falling back to `pending` when the history is empty.
+ */
+export function recomputeFromHistory(history: CallEntry["history"]): {
+  outcome: CallOutcome;
+  attempts: number;
+  lastOutcomeAt: number | undefined;
+} {
+  const attempts = history.filter(
+    (h) => h.outcome === "called" || h.outcome === "no_answer",
+  ).length;
+  const last = history[history.length - 1];
+  return {
+    outcome: last?.outcome ?? "pending",
+    attempts,
+    lastOutcomeAt: last?.at,
+  };
 }
 
 /** Short, friendly date+time, e.g. "Mon 8 Jun, 10:30 AM". */

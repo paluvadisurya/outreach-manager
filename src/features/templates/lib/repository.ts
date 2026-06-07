@@ -1,6 +1,7 @@
 import type { Template } from "@/lib/types";
 import { getDB } from "@/lib/db/db";
 import { uid } from "@/lib/id";
+import { eventsRepo } from "@/features/analytics/lib/repository";
 
 export const templatesRepo = {
   async all(): Promise<Template[]> {
@@ -21,6 +22,7 @@ export const templatesRepo = {
       updatedAt: now,
     };
     await getDB().templates.add(template);
+    eventsRepo.log("template_created", { ref: template.id, templateId: template.id });
     return template;
   },
 

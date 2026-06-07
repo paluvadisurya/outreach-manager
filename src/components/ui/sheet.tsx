@@ -11,6 +11,8 @@ interface SheetProps {
   title?: string;
   description?: string;
   children: React.ReactNode;
+  /** Optional action rendered in the header, just left of the close button. */
+  headerAction?: React.ReactNode;
   /** Sticky footer (actions). Stays pinned above the safe area. */
   footer?: React.ReactNode;
 }
@@ -26,6 +28,7 @@ export function Sheet({
   title,
   description,
   children,
+  headerAction,
   footer,
 }: SheetProps) {
   React.useEffect(() => {
@@ -78,15 +81,17 @@ export function Sheet({
               </p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-2 shrink-0"
-          >
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="-mr-2 flex shrink-0 items-center gap-0.5">
+            {headerAction}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>

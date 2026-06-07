@@ -11,6 +11,7 @@ import { contactsRepo } from "@/features/contacts/lib/repository";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { templatesRepo } from "@/features/templates/lib/repository";
 import { settingsRepo } from "@/features/settings/lib/repository";
+import { eventsRepo } from "@/features/analytics/lib/repository";
 import { renderTemplate, tidyMessage } from "@/features/templates/lib/render";
 import { personalizeContact } from "@/features/contacts/lib/name";
 import { generateCampaignMessages } from "./generate";
@@ -84,6 +85,24 @@ export const campaignsRepo = {
       .campaignMessages.where("[campaignId+order]")
       .between([campaignId, -Infinity], [campaignId, Infinity])
       .toArray();
+  },
+
+  /** Every campaign message across all campaigns — used by the Analytics view. */
+  async allMessages(): Promise<CampaignMessage[]> {
+    return getDB().campaignMessages.toArray();
+  },
+
+  /**
+   * The set of contact ids that have at least one message marked `sent` across
+   * any campaign — used by the Call list to flag who has already been messaged.
+   * Uses the `status` index for an efficient scan.
+   */
+  async sentContactIds(): Promise<Set<string>> {
+    const sent = await getDB()
+      .campaignMessages.where("status")
+      .equals("sent")
+      .toArray();
+    return new Set(sent.map((m) => m.contactId));
   },
 
   /**
@@ -174,6 +193,7 @@ export const campaignsRepo = {
       await db.campaigns.add(campaign);
       if (messages.length) await db.campaignMessages.bulkAdd(messages);
     });
+    eventsRepo.log("campaign_created", { ref: id, campaignId: id });
     return campaign;
   },
 

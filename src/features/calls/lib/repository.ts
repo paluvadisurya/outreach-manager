@@ -1,6 +1,8 @@
 import type { CallEntry, CallOutcome } from "@/lib/types";
 import { getDB } from "@/lib/db/db";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
+import { eventsRepo } from "@/features/analytics/lib/repository";
+import { recomputeFromHistory } from "./display";
 
 /**
  * The call list: contacts the user intends to phone, with their latest outcome,
@@ -91,6 +93,51 @@ export const callsRepo = {
         updatedAt: now,
       });
     });
+    eventsRepo.log("call_logged", { ref: contactId, outcome });
+  },
+
+  /**
+   * Correct a single past log's outcome (e.g. a mis-tapped "Called"). Rewrites
+   * that history entry and recomputes the entry's current outcome/attempts/last
+   * from the full history so the rolled-up state and analytics stay consistent.
+   */
+  async editLog(
+    contactId: string,
+    index: number,
+    outcome: CallOutcome,
+  ): Promise<void> {
+    const db = getDB();
+    await db.transaction("rw", db.calls, async () => {
+      const entry = await db.calls.get(contactId);
+      if (!entry || index < 0 || index >= entry.history.length) return;
+      const history = entry.history.map((h, i) =>
+        i === index ? { ...h, outcome } : h,
+      );
+      await db.calls.update(contactId, {
+        history,
+        ...recomputeFromHistory(history),
+        updatedAt: Date.now(),
+      });
+    });
+  },
+
+  /**
+   * Delete a single past log entry. Recomputes the entry's derived state from
+   * what remains (resetting to `pending` when the history is emptied). The
+   * caller is expected to confirm first (destructive, per the data-safety rule).
+   */
+  async deleteLog(contactId: string, index: number): Promise<void> {
+    const db = getDB();
+    await db.transaction("rw", db.calls, async () => {
+      const entry = await db.calls.get(contactId);
+      if (!entry || index < 0 || index >= entry.history.length) return;
+      const history = entry.history.filter((_, i) => i !== index);
+      await db.calls.update(contactId, {
+        history,
+        ...recomputeFromHistory(history),
+        updatedAt: Date.now(),
+      });
+    });
   },
 
   /** Replace the set of campaigns linked to a contact for talking-point context. */
@@ -114,6 +161,7 @@ export const callsRepo = {
       nextCallNote: note?.trim() || undefined,
       updatedAt: Date.now(),
     });
+    eventsRepo.log("call_scheduled", { ref: contactId, at });
   },
 
   async setNotes(contactId: string, notes: string): Promise<void> {

@@ -2,6 +2,13 @@ import type { Category } from "@/lib/types";
 import { getDB } from "@/lib/db/db";
 import { uid } from "@/lib/id";
 
+/**
+ * The managed "keep" group used by the contact-cleanup triage flow. A normal
+ * category (so it shows up in People and can power campaigns), just with a
+ * reserved name so the triage tool can find-or-create it deterministically.
+ */
+export const SHORTLIST_NAME = "⭐ Shortlist";
+
 const PALETTE = [
   "#16a34a",
   "#2563eb",
@@ -20,6 +27,18 @@ export const categoriesRepo = {
 
   async get(id: string): Promise<Category | undefined> {
     return getDB().categories.get(id);
+  },
+
+  /** The managed Shortlist group, if it exists yet. */
+  async getShortlist(): Promise<Category | undefined> {
+    return getDB().categories.where("name").equals(SHORTLIST_NAME).first();
+  },
+
+  /** Find the managed Shortlist group, creating it on first use. */
+  async findOrCreateShortlist(): Promise<Category> {
+    const existing = await this.getShortlist();
+    if (existing) return existing;
+    return this.create(SHORTLIST_NAME);
   },
 
   async create(name: string): Promise<Category> {

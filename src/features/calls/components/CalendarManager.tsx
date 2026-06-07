@@ -16,6 +16,7 @@ import {
   CheckCheck,
   UserMinus,
   Check,
+  StickyNote,
 } from "lucide-react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -432,6 +433,12 @@ function AgendaRow({
           {entry.nextCallNote && (
             <span className="mt-0.5 block truncate text-sm text-foreground">
               {entry.nextCallNote}
+            </span>
+          )}
+          {entry.notes && (
+            <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <StickyNote className="h-3 w-3 shrink-0" />
+              {entry.notes}
             </span>
           )}
         </span>
