@@ -4,6 +4,7 @@ import * as React from "react";
 import { Upload, FileWarning, Check } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { haptic } from "@/lib/haptics";
 import { parseVCF } from "../lib/vcf";
 import { contactsRepo } from "../lib/repository";
 import type { ImportResult } from "../lib/import";
@@ -60,6 +61,7 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
     setBusy(true);
     try {
       await contactsRepo.commitImport(result.upserts);
+      haptic("success");
       setStage("done");
       onImported();
     } finally {
@@ -132,6 +134,9 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
             <Stat label="Updated" value={summary.updated} />
             <Stat label="Merged" value={summary.merged} />
             <Stat label="Skipped" value={summary.skipped} />
+            {summary.blocked > 0 && (
+              <Stat label="Blocked (removed)" value={summary.blocked} />
+            )}
           </div>
 
           {summary.warnings.length > 0 && (
@@ -139,7 +144,7 @@ export function ImportSheet({ open, onClose, onImported }: ImportSheetProps) {
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
                 <FileWarning className="h-4 w-4 text-destructive" />
                 {summary.warnings.length} record
-                {summary.warnings.length === 1 ? "" : "s"} skipped
+                {summary.warnings.length === 1 ? "" : "s"} not imported
               </div>
               <ul className="max-h-40 space-y-1 overflow-y-auto text-sm text-muted-foreground">
                 {summary.warnings.slice(0, 50).map((w, i) => (

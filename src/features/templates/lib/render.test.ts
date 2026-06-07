@@ -4,6 +4,8 @@ import {
   renderTemplate,
   extractVariables,
   tidyMessage,
+  buildRephrasePrompt,
+  stripCodeFences,
 } from "./render";
 
 const contact: Partial<Contact> = {
@@ -65,5 +67,40 @@ describe("extractVariables", () => {
 describe("tidyMessage", () => {
   it("collapses whitespace left by empty variables", () => {
     expect(tidyMessage("Hi   there\n\n\n\nbye  ")).toBe("Hi there\n\nbye");
+  });
+});
+
+describe("buildRephrasePrompt", () => {
+  it("embeds the message body verbatim, keeping its tokens intact", () => {
+    const body = "Hi {{first_name}}, this is about {{company}}.";
+    const prompt = buildRephrasePrompt(body);
+    expect(prompt).toContain(body);
+    expect(prompt).toContain("{{first_name}}");
+  });
+
+  it("instructs ChatGPT on the key constraints", () => {
+    const prompt = buildRephrasePrompt("Hello").toLowerCase();
+    expect(prompt).toContain("placeholder");
+    expect(prompt).toContain("indian english");
+    expect(prompt).toContain("do not use any emojis");
+    expect(prompt).toContain("markdown code block");
+  });
+});
+
+describe("stripCodeFences", () => {
+  it("removes a surrounding fenced block", () => {
+    expect(stripCodeFences("```\nHi there\n```")).toBe("Hi there");
+  });
+
+  it("removes a fence that carries a language hint", () => {
+    expect(stripCodeFences("```text\nHi there\n```")).toBe("Hi there");
+  });
+
+  it("leaves unfenced text untouched (only trims)", () => {
+    expect(stripCodeFences("  Hi there  ")).toBe("Hi there");
+  });
+
+  it("keeps inner backticks that aren't the wrapping fence", () => {
+    expect(stripCodeFences("Use `code` inline")).toBe("Use `code` inline");
   });
 });

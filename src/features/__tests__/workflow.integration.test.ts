@@ -5,6 +5,7 @@ import { contactsRepo } from "@/features/contacts/lib/repository";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { templatesRepo } from "@/features/templates/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
+import { callsRepo } from "@/features/calls/lib/repository";
 import { computeProgress } from "@/features/campaigns/lib/progress";
 
 async function freshDb() {
@@ -230,6 +231,47 @@ describe("end-to-end outreach workflow", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0]!.contactId).toBe(anita.id);
     expect((await campaignsRepo.get(campaign.id))!.total).toBe(1);
+  });
+
+  it("soft-removes a contact everywhere, blocks re-import, then restores it", async () => {
+    await importVcf(MULTI_FILE_A); // Ramesh, Anita
+    const contacts = await contactsRepo.all();
+    const ramesh = contacts.find((c) => c.fullName === "Ramesh Kumar")!;
+    const anita = contacts.find((c) => c.fullName === "Anita Sharma")!;
+    const cat = await categoriesRepo.create("Leads");
+    await contactsRepo.addToCategory([ramesh.id, anita.id], cat.id);
+    await callsRepo.addContacts([ramesh.id]);
+    expect(await callsRepo.get(ramesh.id)).toBeTruthy();
+
+    // Remove Ramesh (no WhatsApp / out of domain).
+    await contactsRepo.remove([ramesh.id]);
+
+    // Gone from every active surface; call-list entry cleared.
+    expect((await contactsRepo.all()).map((c) => c.id)).toEqual([anita.id]);
+    expect(await contactsRepo.count()).toBe(1);
+    expect((await contactsRepo.inCategory(cat.id)).map((c) => c.id)).toEqual([
+      anita.id,
+    ]);
+    expect(await callsRepo.get(ramesh.id)).toBeUndefined();
+    expect((await contactsRepo.removedList()).map((c) => c.id)).toEqual([
+      ramesh.id,
+    ]);
+
+    // Re-importing his number is blocked and never re-adds him.
+    const reimport = await importVcf(
+      "BEGIN:VCARD\nFN:Ramesh Kumar\nTEL:9876543210\nEMAIL:back@example.com\nEND:VCARD",
+    );
+    expect(reimport.summary.blocked).toBe(1);
+    expect(reimport.summary.imported).toBe(0);
+    expect(await contactsRepo.count()).toBe(1);
+    const stillRemoved = await getDB().contacts.get(ramesh.id);
+    expect(stillRemoved?.removed).toBe(true);
+    expect(stillRemoved?.email).toBeUndefined(); // untouched by the blocked import
+
+    // Restore brings him back into the active lists.
+    await contactsRepo.restore([ramesh.id]);
+    expect(await contactsRepo.count()).toBe(2);
+    expect(await contactsRepo.removedList()).toHaveLength(0);
   });
 
   it("removes a deleted category from its member contacts", async () => {

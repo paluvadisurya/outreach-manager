@@ -2,21 +2,33 @@
 
 import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Trash2, Shuffle, Plus, Check } from "lucide-react";
+import {
+  Trash2,
+  Shuffle,
+  Plus,
+  Check,
+  Bot,
+  ClipboardPaste,
+  Eraser,
+} from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { ExpandableText } from "@/components/ui/collapsible";
 import type { Contact, Template, TemplateVariable } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { personalizeContact } from "@/features/contacts/lib/name";
 import { useSettings } from "@/features/settings/hooks/useSettings";
+import { haptic } from "@/lib/haptics";
 import { templatesRepo } from "../lib/repository";
 import {
   TEMPLATE_VARIABLES,
   VARIABLE_LABELS,
+  buildRephrasePrompt,
   renderTemplate,
+  stripCodeFences,
   tidyMessage,
 } from "../lib/render";
 
@@ -47,6 +59,7 @@ export function TemplateEditor({
   const [name, setName] = React.useState("");
   const [body, setBody] = React.useState("");
   const [sampleIndex, setSampleIndex] = React.useState(0);
+  const [notice, setNotice] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const selectionRef = React.useRef<{ start: number; end: number }>({
     start: 0,
@@ -58,6 +71,7 @@ export function TemplateEditor({
       setName(template?.name ?? "");
       setBody(template?.body ?? "");
       setSampleIndex(0);
+      setNotice(null);
     }
   }, [open, template]);
 
@@ -96,6 +110,54 @@ export function TemplateEditor({
     });
   };
 
+  /**
+   * Rephrase via ChatGPT: open ChatGPT in a new tab with the ready-made prompt
+   * (instructions + the current body, with its {{tokens}} intact) carried in the
+   * `?q=` query param so it lands pre-filled. We also copy the prompt to the
+   * clipboard as a silent fallback in case the param doesn't survive a redirect
+   * (e.g. a sign-in bounce). The user copies ChatGPT's reply and taps "Paste".
+   */
+  const rephraseWithGpt = async () => {
+    haptic("light");
+    const prompt = buildRephrasePrompt(body);
+    // Best-effort clipboard backup; ignore failures (param is the primary path).
+    void navigator.clipboard?.writeText(prompt).catch(() => {});
+    const url = `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  /** Paste the rephrased reply from the clipboard, stripping any code fence. */
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        setBody(stripCodeFences(text));
+        setNotice(null);
+        haptic("success");
+      } else {
+        setNotice("Clipboard is empty — copy the rephrased message first.");
+      }
+    } catch {
+      setNotice(
+        "Couldn't read the clipboard. Paste the message into the box manually.",
+      );
+    }
+  };
+
+  /** Wipe the message box so a fresh (e.g. rephrased) version can be pasted in. */
+  const clearBody = () => {
+    if (
+      body.trim().length > 0 &&
+      typeof window !== "undefined" &&
+      !window.confirm("Clear the message box?")
+    ) {
+      return;
+    }
+    setBody("");
+    setNotice(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   const save = async () => {
     if (template) {
       await templatesRepo.update(template.id, { name, body });
@@ -126,7 +188,6 @@ export function TemplateEditor({
       open={open}
       onClose={onClose}
       title={template ? "Edit template" : "New template"}
-      description="Personalize with fields. Select text, then tap a field to swap it in."
       footer={
         <div className="flex gap-3">
           {template && (
@@ -154,9 +215,30 @@ export function TemplateEditor({
         </div>
 
         <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground">
-            Message
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-semibold text-foreground">
+              Message
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={pasteFromClipboard}
+                className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary/70"
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" />
+                Paste
+              </button>
+              <button
+                type="button"
+                onClick={clearBody}
+                disabled={body.length === 0}
+                className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary/70 disabled:opacity-40"
+              >
+                <Eraser className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            </div>
+          </div>
           <Textarea
             ref={textareaRef}
             value={body}
@@ -167,6 +249,23 @@ export function TemplateEditor({
             rows={6}
             placeholder={"Hi {{first_name}},\n\nI noticed you were exploring…"}
           />
+
+          {/* Rephrase with ChatGPT — copies a tuned prompt (keeping the
+              {{tokens}} intact) and opens ChatGPT; paste the reply back above. */}
+          <button
+            type="button"
+            onClick={rephraseWithGpt}
+            disabled={body.trim().length === 0}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-accent/60 py-3 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent disabled:opacity-40"
+          >
+            <Bot className="h-4 w-4 text-primary" />
+            Rephrase with ChatGPT
+          </button>
+          {notice && (
+            <p className="rounded-xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
+              {notice}
+            </p>
+          )}
 
           {/* Variable toolbar */}
           <div className="rounded-2xl border border-border/70 bg-secondary/40 p-3">
@@ -209,10 +308,15 @@ export function TemplateEditor({
 
           <div className="overflow-hidden rounded-2xl border border-border/70 bg-[#e6ddd3] p-4">
             <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-md bg-[#dcf8c6] px-3.5 py-2.5 shadow-sm">
-              <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-[#111b21]">
-                {tidyMessage(rendered.text) ||
-                  "Your message preview appears here."}
-              </p>
+              <ExpandableText
+                text={
+                  tidyMessage(rendered.text) ||
+                  "Your message preview appears here."
+                }
+                lines={8}
+                className="text-[13px] leading-relaxed text-[#111b21]"
+                toggleClassName="text-[#075e54]"
+              />
               <span className="mt-1 block text-right text-[10px] text-[#667781]">
                 12:30 ✓✓
               </span>

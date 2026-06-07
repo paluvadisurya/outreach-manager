@@ -21,6 +21,11 @@ export interface ImportSummary {
   merged: number;
   /** Records dropped because they had no valid phone number. */
   skipped: number;
+  /**
+   * Records skipped because their number belongs to a previously-removed contact
+   * (no WhatsApp / out of domain). They are intentionally not re-added.
+   */
+  blocked: number;
   warnings: ImportWarning[];
 }
 
@@ -57,6 +62,7 @@ export function buildImport(
 
   let merged = 0;
   let skipped = 0;
+  let blocked = 0;
   const warnings: ImportWarning[] = [];
 
   for (const card of cards) {
@@ -75,6 +81,19 @@ export function buildImport(
     }
 
     const id = phone.id;
+
+    // Blocklist: a previously-removed contact must never be re-added. Skip the
+    // card entirely and leave the removed record untouched.
+    if (working.get(id)?.removed) {
+      blocked++;
+      warnings.push({
+        fullName: card.fullName || "(no name)",
+        rawPhones: card.phones,
+        reason: "Previously removed — not re-added",
+      });
+      continue;
+    }
+
     const alreadyExists = working.has(id);
 
     if (alreadyExists) {
@@ -119,6 +138,7 @@ export function buildImport(
       updated: updatedIds.size,
       merged,
       skipped,
+      blocked,
       warnings,
     },
     upserts,

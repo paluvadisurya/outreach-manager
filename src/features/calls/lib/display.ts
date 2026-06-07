@@ -11,6 +11,54 @@ export const OUTCOME_META: Record<
   skipped: { label: "Skipped", variant: "secondary" },
 };
 
+/** Ways the call list can be ordered, exposed in the sort menu. */
+export type CallSort = "recent" | "upcoming" | "logged" | "name" | "added";
+
+/** Sort options in menu order, with their user-facing labels. */
+export const CALL_SORTS: { value: CallSort; label: string; hint: string }[] = [
+  { value: "recent", label: "Recent activity", hint: "Latest change first" },
+  { value: "upcoming", label: "Upcoming call", hint: "Soonest scheduled first" },
+  { value: "logged", label: "Last call logged", hint: "Most recent outcome first" },
+  { value: "name", label: "Name (A–Z)", hint: "Alphabetical" },
+  { value: "added", label: "Recently added", hint: "Newest on the list first" },
+];
+
+/**
+ * Return a new, sorted copy of the call entries for the chosen ordering.
+ * `nameOf` resolves a contact's display name for the alphabetical sort. The
+ * input array is never mutated.
+ */
+export function sortCalls(
+  entries: CallEntry[],
+  sort: CallSort,
+  nameOf: (e: CallEntry) => string,
+): CallEntry[] {
+  const list = [...entries];
+  switch (sort) {
+    case "upcoming":
+      // Scheduled calls soonest-first; unscheduled entries sink to the bottom,
+      // ordered by recent activity among themselves.
+      return list.sort((a, b) => {
+        const an = a.nextCallAt ?? Infinity;
+        const bn = b.nextCallAt ?? Infinity;
+        if (an !== bn) return an - bn;
+        return b.updatedAt - a.updatedAt;
+      });
+    case "logged":
+      // Most recently logged outcome first; never-logged entries fall last.
+      return list.sort((a, b) => (b.lastOutcomeAt ?? 0) - (a.lastOutcomeAt ?? 0));
+    case "name":
+      return list.sort((a, b) =>
+        nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: "base" }),
+      );
+    case "added":
+      return list.sort((a, b) => b.createdAt - a.createdAt);
+    case "recent":
+    default:
+      return list.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+}
+
 /** Short, friendly date+time, e.g. "Mon 8 Jun, 10:30 AM". */
 export function formatCallTime(ms: number): string {
   return new Date(ms).toLocaleString(undefined, {

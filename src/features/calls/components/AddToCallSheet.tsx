@@ -7,6 +7,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
@@ -60,12 +61,32 @@ export function AddToCallSheet({ open, onClose }: AddToCallSheetProps) {
       return next;
     });
 
-  const report = (n: number) =>
+  // Whether every contact currently in the search results is already picked.
+  const allResultsPicked =
+    searchResults.length > 0 && searchResults.every((c) => picked.has(c.id));
+
+  // Select (or clear) all contacts in the current search results at once.
+  const toggleAllResults = () => {
+    haptic("light");
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (searchResults.every((c) => next.has(c.id))) {
+        for (const c of searchResults) next.delete(c.id);
+      } else {
+        for (const c of searchResults) next.add(c.id);
+      }
+      return next;
+    });
+  };
+
+  const report = (n: number) => {
+    haptic(n > 0 ? "success" : "light");
     setDone(
       n === 0
         ? "Everyone selected was already on your call list."
         : `Added ${n} contact${n === 1 ? "" : "s"} to your call list.`,
     );
+  };
 
   const addCategory = async (categoryId: string) => {
     setBusy(true);
@@ -200,8 +221,24 @@ export function AddToCallSheet({ open, onClose }: AddToCallSheetProps) {
                 No contacts matched “{query}”.
               </p>
             ) : (
-              <ul className="space-y-2">
-                {searchResults.map((c) => {
+              <>
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs text-muted-foreground">
+                    {searchResults.length} result
+                    {searchResults.length === 1 ? "" : "s"}
+                    {picked.size > 0 ? ` · ${picked.size} selected` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleAllResults}
+                    className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-foreground hover:bg-secondary/70"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    {allResultsPicked ? "Clear all" : "Select all"}
+                  </button>
+                </div>
+                <ul className="space-y-2">
+                  {searchResults.map((c) => {
                   const sel = picked.has(c.id);
                   return (
                     <li key={c.id}>
@@ -242,7 +279,8 @@ export function AddToCallSheet({ open, onClose }: AddToCallSheetProps) {
                     </li>
                   );
                 })}
-              </ul>
+                </ul>
+              </>
             )}
           </div>
         )}

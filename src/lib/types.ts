@@ -24,6 +24,15 @@ export interface Contact {
   categoryIds: string[];
   /** Lowercased concatenation of searchable fields for fast filtering. */
   searchIndex: string;
+  /**
+   * Soft-removed contacts (no WhatsApp / out of domain) are hidden from every
+   * active list, category and campaign, and are skipped on re-import so they
+   * never come back. The record is kept so the removal can be undone from
+   * Settings → Removed contacts. `undefined`/`false` means active.
+   */
+  removed?: boolean;
+  /** When the contact was soft-removed. */
+  removedAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -169,14 +178,21 @@ export interface AppSettings {
   firstNameFirstWordOnly: boolean;
   /** Minimum length of the first word before the next word is appended. */
   firstNameMinLength: number;
-  /** Preferred WhatsApp app to open send links in. Defaults to Business. */
+  /** Preferred WhatsApp app to open send links in. Defaults to WhatsApp. */
   whatsappApp: WhatsAppApp;
+  /**
+   * Show the manual "Open via wa.me link instead" fallback link on the send
+   * screen. Off by default — the send button already falls back to wa.me on its
+   * own when a native app doesn't open. Handy to switch on for desktop/laptop.
+   */
+  showWaMeFallback: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   firstNameFirstWordOnly: true,
   firstNameMinLength: 3,
-  whatsappApp: "business",
+  whatsappApp: "personal",
+  showWaMeFallback: false,
 };
 
 /** A parsed VCF record before it is normalized into a Contact. */
