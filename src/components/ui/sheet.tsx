@@ -11,6 +11,12 @@ interface SheetProps {
   title?: string;
   description?: string;
   children: React.ReactNode;
+  /**
+   * Custom header content replacing the default title/description block (e.g. a
+   * wrapping name with an inline action). `title` is still used for the dialog's
+   * accessible label when provided.
+   */
+  header?: React.ReactNode;
   /** Optional action rendered in the header, just left of the close button. */
   headerAction?: React.ReactNode;
   /** Sticky footer (actions). Stays pinned above the safe area. */
@@ -28,6 +34,7 @@ export function Sheet({
   title,
   description,
   children,
+  header,
   headerAction,
   footer,
 }: SheetProps) {
@@ -69,16 +76,20 @@ export function Sheet({
           <span className="h-1.5 w-11 rounded-full bg-border" aria-hidden />
         </div>
         <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-1">
-          <div className="min-w-0">
-            {title && (
-              <h2 className="truncate text-xl font-bold tracking-tight text-foreground">
-                {title}
-              </h2>
-            )}
-            {description && (
-              <p className="mt-1 text-sm leading-snug text-muted-foreground">
-                {description}
-              </p>
+          <div className="min-w-0 flex-1">
+            {header ?? (
+              <>
+                {title && (
+                  <h2 className="truncate text-xl font-bold tracking-tight text-foreground">
+                    {title}
+                  </h2>
+                )}
+                {description && (
+                  <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                    {description}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <div className="-mr-2 flex shrink-0 items-center gap-0.5">

@@ -1,4 +1,38 @@
-import type { CallEntry, CallOutcome } from "@/lib/types";
+import type { CallEntry, CallOutcome, ContactRating } from "@/lib/types";
+
+/**
+ * Presentation for the persistent traffic-light rating, shared by the detail
+ * sheet's selectable buttons and the call-list row dot. `dot` colours the list
+ * indicator; `idle` is the resting button; `active` is the chosen button — a
+ * soft tint (not a full-saturation "neon" fill) so it reads as selected without
+ * glare. Class tokens only — components attach their own icons.
+ */
+export const RATING_META: Record<
+  ContactRating,
+  { label: string; dot: string; idle: string; active: string }
+> = {
+  connect: {
+    label: "Connect again",
+    dot: "bg-green-500",
+    idle: "border-green-200 bg-green-50 text-green-700",
+    active: "border-green-300 bg-green-100 text-green-800 ring-1 ring-green-300",
+  },
+  no_answer: {
+    label: "Didn't pick",
+    dot: "bg-amber-500",
+    idle: "border-amber-200 bg-amber-50 text-amber-700",
+    active: "border-amber-300 bg-amber-100 text-amber-800 ring-1 ring-amber-300",
+  },
+  avoid: {
+    label: "Don't call again",
+    dot: "bg-red-500",
+    idle: "border-red-200 bg-red-50 text-red-700",
+    active: "border-red-300 bg-red-100 text-red-800 ring-1 ring-red-300",
+  },
+};
+
+/** Ratings in display order (green → amber → red). */
+export const RATING_ORDER: ContactRating[] = ["connect", "no_answer", "avoid"];
 
 /** Badge presentation for each call outcome. */
 export const OUTCOME_META: Record<

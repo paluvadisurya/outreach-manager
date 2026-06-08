@@ -4,35 +4,12 @@ import * as React from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Contact } from "@/lib/types";
+import { initials, tintFor } from "../lib/avatar";
 
 interface ContactRowProps {
   contact: Contact;
   selected: boolean;
   onToggle: () => void;
-}
-
-/** Soft pastel avatar palette, chosen deterministically from the name. */
-const AVATAR_TINTS = [
-  "bg-rose-100 text-rose-700",
-  "bg-amber-100 text-amber-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-sky-100 text-sky-700",
-  "bg-violet-100 text-violet-700",
-  "bg-teal-100 text-teal-700",
-  "bg-fuchsia-100 text-fuchsia-700",
-  "bg-indigo-100 text-indigo-700",
-];
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  return (parts[0]![0]! + (parts[1]?.[0] ?? "")).toUpperCase();
-}
-
-function tintFor(key: string): string {
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  return AVATAR_TINTS[Math.abs(hash) % AVATAR_TINTS.length]!;
 }
 
 export const ContactRow = React.memo(function ContactRow({

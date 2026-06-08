@@ -20,6 +20,7 @@ import { haptic } from "@/lib/haptics";
 import type { Category } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { filterContacts } from "@/features/contacts/lib/search";
+import { initials, tintFor } from "@/features/contacts/lib/avatar";
 import { categoriesRepo } from "../lib/repository";
 
 interface CategoryEditSheetProps {
@@ -283,6 +284,7 @@ export function CategoryEditSheet({ category, onClose }: CategoryEditSheetProps)
             {display.map((c) => (
               <MemberRow
                 key={c.id}
+                id={c.id}
                 name={c.fullName || c.phone}
                 phone={c.phone}
                 mode={adding ? "add" : "remove"}
@@ -301,6 +303,7 @@ export function CategoryEditSheet({ category, onClose }: CategoryEditSheetProps)
 }
 
 function MemberRow({
+  id,
   name,
   phone,
   mode,
@@ -308,6 +311,7 @@ function MemberRow({
   onToggleSelect,
   onAction,
 }: {
+  id: string;
   name: string;
   phone: string;
   mode: "add" | "remove";
@@ -328,15 +332,16 @@ function MemberRow({
         aria-pressed={selected}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
+        {/* Initials avatar by default; swaps to a filled check when selected so
+            the row still shows who the person is (not just an empty circle). */}
         <span
           className={cn(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
-            selected
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border text-transparent",
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold",
+            selected ? "bg-primary text-primary-foreground" : tintFor(id),
           )}
+          aria-hidden
         >
-          <Check className="h-4 w-4" />
+          {selected ? <Check className="h-5 w-5" /> : initials(name)}
         </span>
         <span className="min-w-0">
           <span className="block truncate font-semibold text-foreground">

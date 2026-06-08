@@ -11,14 +11,12 @@ import {
   Plus,
   MessageCircle,
   Check,
-  Trash2,
-  RotateCcw,
+  ChevronRight,
   UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { haptic } from "@/lib/haptics";
 import type { AppSettings, WhatsAppApp } from "@/lib/types";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { settingsRepo } from "../lib/repository";
@@ -38,24 +36,6 @@ export function SettingsManager() {
   const examples = ["Ramesh Kumar", "K Ramesh", "Sai Krishna Reddy"];
 
   const removed = useLiveQuery(() => contactsRepo.removedList(), []) ?? [];
-
-  const restoreContact = async (id: string) => {
-    haptic("light");
-    await contactsRepo.restore([id]);
-  };
-
-  const deleteForever = async (id: string, label: string) => {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        `Permanently delete ${label}? This can't be undone. (They stay blocked from re-import only while kept here. Deleting forever lets a future import re-add them.)`,
-      )
-    ) {
-      return;
-    }
-    haptic("warning");
-    await contactsRepo.delete([id]);
-  };
 
   const whatsappOptions: { value: WhatsAppApp; label: string; hint: string }[] = [
     {
@@ -230,51 +210,26 @@ export function SettingsManager() {
           </div>
           <p className="mb-3 text-sm text-muted-foreground">
             Contacts you removed (no WhatsApp / out of domain). They&apos;re hidden
-            from every list and skipped on import. Restore one to bring it back, or
-            delete it for good.
+            from every list and skipped on import. Manage them on a dedicated page
+            with search and bulk Restore / Delete-forever.
           </p>
-          {removed.length === 0 ? (
-            <p className="rounded-2xl bg-elevated p-3.5 ring-1 ring-inset ring-hairline text-sm text-muted-foreground">
-              No removed contacts.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {removed.map((c) => {
-                const label = c.fullName || c.phone;
-                return (
-                  <li
-                    key={c.id}
-                    className="flex items-center gap-2 rounded-2xl border border-hairline bg-card p-2.5 shadow-soft"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-foreground">
-                        {label}
-                      </span>
-                      <span className="block truncate text-sm text-muted-foreground">
-                        {c.phone}
-                      </span>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => restoreContact(c.id)}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Restore
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteForever(c.id, label)}
-                      aria-label={`Delete ${label} forever`}
-                    >
-                      <Trash2 className="h-5 w-5 text-destructive" />
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <button
+            type="button"
+            onClick={() => router.push("/settings/removed")}
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3.5 text-left shadow-soft transition-all hover:bg-secondary active:scale-[0.99]"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-foreground">
+                {removed.length === 0
+                  ? "No removed contacts"
+                  : `${removed.length} removed contact${removed.length === 1 ? "" : "s"}`}
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Tap to manage
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+          </button>
         </section>
 
         {/* Phone normalization (informational) */}

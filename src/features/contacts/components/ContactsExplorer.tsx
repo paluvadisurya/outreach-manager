@@ -11,6 +11,7 @@ import {
   FolderPlus,
   FolderMinus,
   Send,
+  Megaphone,
   Users,
   UserMinus,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { ImportSheet } from "./ImportSheet";
 import { ContactRow } from "./ContactRow";
 import { AssignCategorySheet } from "./AssignCategorySheet";
 import { CampaignCreateSheet } from "@/features/campaigns/components/CampaignCreateSheet";
+import { PickCampaignSheet } from "@/features/campaigns/components/PickCampaignSheet";
 import { loadDemoData } from "@/lib/seed";
 
 const ROW_HEIGHT = 76;
@@ -43,6 +45,7 @@ export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = 
     null,
   );
   const [campaignOpen, setCampaignOpen] = React.useState(false);
+  const [pickCampaignOpen, setPickCampaignOpen] = React.useState(false);
 
   const filtered = React.useMemo(
     () => filterContacts(contacts ?? [], query),
@@ -247,6 +250,17 @@ export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = 
               </Button>
               <Button
                 size="sm"
+                variant="outline"
+                onClick={() => {
+                  haptic("light");
+                  setPickCampaignOpen(true);
+                }}
+                aria-label="Add to existing campaign"
+              >
+                <Megaphone className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
                 onClick={() => {
                   haptic("light");
                   setCampaignOpen(true);
@@ -282,6 +296,13 @@ export function ContactsExplorer({ embedded = false }: { embedded?: boolean } = 
           clear();
           router.push(`/campaigns/${id}`);
         }}
+      />
+
+      <PickCampaignSheet
+        open={pickCampaignOpen}
+        contactIds={selectedIds}
+        onClose={() => setPickCampaignOpen(false)}
+        onDone={clear}
       />
     </div>
   );

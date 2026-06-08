@@ -14,7 +14,8 @@ import {
   Trash2,
   MessageCircle,
   Megaphone,
-  ChevronRight,
+  PhoneCall,
+  Ban,
   UserX,
   StickyNote,
   CheckCircle2,
@@ -32,14 +33,21 @@ import { HapticButton } from "@/components/ui/haptic-button";
 import { ExpandableText } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
-import type { CallOutcome, MessageStatus } from "@/lib/types";
+import type { CallOutcome, ContactRating, MessageStatus } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { categoriesRepo } from "@/features/categories/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
-import { templatesRepo } from "@/features/templates/lib/repository";
+import { CampaignCreateSheet } from "@/features/campaigns/components/CampaignCreateSheet";
 import { callsRepo } from "../lib/repository";
-import { formatCallTime } from "../lib/display";
+import { formatCallTime, RATING_META, RATING_ORDER } from "../lib/display";
 import { downloadICS } from "../lib/ics";
+
+/** Icon per traffic-light rating, paired with the shared `RATING_META` styling. */
+const RATING_ICON: Record<ContactRating, LucideIcon> = {
+  connect: PhoneCall,
+  no_answer: PhoneOff,
+  avoid: Ban,
+};
 
 interface CallDetailSheetProps {
   /** Contact id to show, or null to keep the sheet closed. */
@@ -105,7 +113,6 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
     [contactId],
   );
   const campaigns = useLiveQuery(() => campaignsRepo.all(), []) ?? [];
-  const templates = useLiveQuery(() => templatesRepo.all(), []) ?? [];
   // The managed Shortlist group, so the header star can show/toggle membership.
   const shortlist = useLiveQuery(() => categoriesRepo.getShortlist(), []);
   const starred = Boolean(
@@ -141,8 +148,9 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
   }, [contactId, entry?.campaignIds.join(",")]);
 
   const [linking, setLinking] = React.useState(false);
-  const [creating, setCreating] = React.useState(false);
-  const [creatingBusy, setCreatingBusy] = React.useState(false);
+  // The per-person "New campaign" action now opens the standard create sheet
+  // (pre-attached to this contact) stacked on top of the detail.
+  const [createOpen, setCreateOpen] = React.useState(false);
   const [schedule, setSchedule] = React.useState(defaultSchedule);
   const [scheduleNote, setScheduleNote] = React.useState("");
   // Persistent free-form remarks about this person (Req #1), distinct from the
@@ -150,6 +158,9 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
   const [remarks, setRemarks] = React.useState("");
   // Index of the call-log row currently being corrected (inline outcome picker).
   const [editingLog, setEditingLog] = React.useState<number | null>(null);
+  // The header trash button opens a small menu offering the two delete kinds
+  // (drop from call list vs. remove the contact entirely).
+  const [deleteMenuOpen, setDeleteMenuOpen] = React.useState(false);
   // The call log now lives at the bottom; a top shortcut scrolls down to it.
   const callLogRef = React.useRef<HTMLElement>(null);
 
@@ -161,10 +172,11 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
   // Reset transient editor state whenever a different contact opens.
   React.useEffect(() => {
     setLinking(false);
-    setCreating(false);
+    setCreateOpen(false);
     setSchedule(defaultSchedule());
     setScheduleNote("");
     setEditingLog(null);
+    setDeleteMenuOpen(false);
   }, [contactId]);
 
   // Correct a past log's outcome, then close the inline picker.
@@ -235,6 +247,15 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
     void callsRepo.setOutcome(contactId, outcome);
   };
 
+  // Set the persistent traffic-light rating, or clear it by tapping the active
+  // circle again (toggle, mirroring the star). Syncs the managed colour category.
+  const setRating = (rating: ContactRating) => {
+    if (!contactId) return;
+    const next = entry?.rating === rating ? null : rating;
+    haptic(next ? "success" : "light");
+    void callsRepo.setRating(contactId, next);
+  };
+
   const toggleCampaign = (campaignId: string) => {
     if (!contactId || !entry) return;
     const has = entry.campaignIds.includes(campaignId);
@@ -244,24 +265,14 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
     void callsRepo.assignCampaigns(contactId, next);
   };
 
-  // Spin up a fresh campaign for just this contact from the chosen template,
-  // link it back for talking points, and jump straight into it.
-  const createCampaign = async (templateId: string, templateName: string) => {
-    if (!contactId || creatingBusy) return;
-    setCreatingBusy(true);
-    try {
-      const campaign = await campaignsRepo.create({
-        name: `${name || phone} · ${templateName}`,
-        templateId,
-        contactIds: [contactId],
-      });
-      await callsRepo.addContacts([contactId], [campaign.id]);
-      setCreating(false);
-      onClose();
-      router.push(`/campaigns/${campaign.id}`);
-    } finally {
-      setCreatingBusy(false);
-    }
+  // A fresh campaign was created for just this contact via the standard create
+  // sheet: link it back for talking points and jump straight into it.
+  const onCampaignCreated = async (campaignId: string) => {
+    if (!contactId) return;
+    await callsRepo.addContacts([contactId], [campaignId]);
+    setCreateOpen(false);
+    onClose();
+    router.push(`/campaigns/${campaignId}`);
   };
 
   const scheduleAt = (): number | null => {
@@ -285,7 +296,18 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
   };
 
   const remove = () => {
-    if (contactId) void callsRepo.remove(contactId);
+    if (!contactId) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Remove ${name || "this contact"} from the call list? Their contact stays in People; this clears their call entry and log.`,
+      )
+    ) {
+      return;
+    }
+    haptic("warning");
+    setDeleteMenuOpen(false);
+    void callsRepo.remove(contactId);
     onClose();
   };
 
@@ -302,35 +324,126 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
       return;
     }
     haptic("warning");
+    setDeleteMenuOpen(false);
     await contactsRepo.remove([contactId]);
     onClose();
   };
 
   return (
+    <>
     <Sheet
       open={contactId !== null}
       onClose={onClose}
       title={name || "Contact"}
-      description={phone || undefined}
+      header={
+        contact ? (
+          // Name + phone with the star pinned alongside, so the star stays
+          // visible no matter how long the name is. The name wraps (never
+          // truncates) so no information is lost (Req #2).
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="break-words text-xl font-bold leading-tight tracking-tight text-foreground">
+                {name || "Contact"}
+              </h2>
+              {phone && (
+                <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                  {phone}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={toggleStar}
+              aria-label={starred ? "Remove from Shortlist" : "Add to Shortlist"}
+              aria-pressed={starred}
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+                starred
+                  ? "text-amber-500 hover:bg-amber-500/10"
+                  : "text-muted-foreground hover:bg-secondary",
+              )}
+            >
+              <Star
+                className={cn("h-5 w-5", starred && "fill-amber-400")}
+                strokeWidth={2.1}
+              />
+            </button>
+          </div>
+        ) : undefined
+      }
       headerAction={
         contact ? (
-          <button
-            type="button"
-            onClick={toggleStar}
-            aria-label={starred ? "Remove from Shortlist" : "Add to Shortlist"}
-            aria-pressed={starred}
-            className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
-              starred
-                ? "text-amber-500 hover:bg-amber-500/10"
-                : "text-muted-foreground hover:bg-secondary",
+          // A single Delete control to the left of the close button. Tapping it
+          // opens a small native-style menu with the two delete kinds; each kind
+          // still confirms before touching stored data (Req #1).
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                haptic("light");
+                setDeleteMenuOpen((v) => !v);
+              }}
+              aria-label="Delete options"
+              aria-haspopup="menu"
+              aria-expanded={deleteMenuOpen}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
+                deleteMenuOpen
+                  ? "bg-destructive/10 text-destructive"
+                  : "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+              )}
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+            {deleteMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  onClick={() => setDeleteMenuOpen(false)}
+                  className="fixed inset-0 z-40 cursor-default"
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-hairline bg-card p-1.5 shadow-float animate-in fade-in zoom-in-95 duration-150"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={remove}
+                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                  >
+                    <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">
+                        Remove from call list
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Keeps the contact; drops this call entry.
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={removeContact}
+                    className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-destructive/10"
+                  >
+                    <UserX className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-destructive">
+                        Remove contact entirely
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        Hides them everywhere and skips on import.
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              </>
             )}
-          >
-            <Star
-              className={cn("h-5 w-5", starred && "fill-amber-400")}
-              strokeWidth={2.1}
-            />
-          </button>
+          </div>
         ) : undefined
       }
       footer={
@@ -374,6 +487,47 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
         <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
       ) : (
         <div className="space-y-5">
+          {/* Persistent traffic-light rating — a forward-looking disposition for
+              this person (distinct from the per-call outcome buttons below).
+              Compact pills: the chosen one gets a soft tint, the rest dim to
+              neutral so the pick stands out. Tapping the active pill clears it.
+              Mirrors into a managed colour category. */}
+          <section className="space-y-2 rounded-2xl border border-hairline bg-card p-2.5 shadow-soft">
+            <h3 className="px-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Rating
+            </h3>
+            <div className="grid grid-cols-3 gap-1.5">
+              {RATING_ORDER.map((r) => {
+                const meta = RATING_META[r];
+                const Icon = RATING_ICON[r];
+                const active = entry.rating === r;
+                const dimmed = Boolean(entry.rating) && !active;
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRating(r)}
+                    aria-pressed={active}
+                    aria-label={meta.label}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-center transition-all active:scale-[0.98]",
+                      active
+                        ? meta.active
+                        : dimmed
+                          ? "border-hairline bg-secondary text-muted-foreground opacity-60"
+                          : meta.idle,
+                    )}
+                  >
+                    <Icon className="h-4 w-4" strokeWidth={2.1} />
+                    <span className="text-[11px] font-semibold leading-tight">
+                      {meta.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           {/* Quick shortcut down to the call log, which now sits at the very
               bottom of the sheet under the remove actions (Req #1). */}
           <button
@@ -403,29 +557,18 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    setCreating((v) => !v);
+                    haptic("light");
                     setLinking(false);
+                    setCreateOpen(true);
                   }}
                   className="flex items-center gap-1 text-sm font-medium text-primary"
                 >
-                  {creating ? (
-                    <>
-                      <X className="h-4 w-4" />
-                      Done
-                    </>
-                  ) : (
-                    <>
-                      <Megaphone className="h-4 w-4" />
-                      New
-                    </>
-                  )}
+                  <Megaphone className="h-4 w-4" />
+                  New
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setLinking((v) => !v);
-                    setCreating(false);
-                  }}
+                  onClick={() => setLinking((v) => !v)}
                   className="flex items-center gap-1 text-sm font-medium text-primary"
                 >
                   {linking ? (
@@ -442,35 +585,6 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                 </button>
               </div>
             </div>
-
-            {creating && (
-              <div className="space-y-2 rounded-2xl border border-primary/20 bg-accent/40 p-2.5">
-                <p className="px-1 text-xs text-muted-foreground">
-                  Pick a template to start a campaign for {name || "this contact"}.
-                </p>
-                {templates.length === 0 ? (
-                  <p className="px-1 py-2 text-sm text-muted-foreground">
-                    No templates yet. Create one from the Templates tab.
-                  </p>
-                ) : (
-                  templates.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      disabled={creatingBusy}
-                      onClick={() => createCampaign(t.id, t.name)}
-                      className="flex w-full items-center gap-2 rounded-xl border border-hairline bg-card px-3 py-2.5 text-left transition-colors hover:bg-secondary disabled:opacity-50"
-                    >
-                      <Megaphone className="h-4 w-4 shrink-0 text-primary" />
-                      <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-                        {t.name}
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
 
             {linking ? (
               campaigns.length === 0 ? (
@@ -680,25 +794,6 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
             />
           </section>
 
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={remove}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" />
-              Remove from call list
-            </button>
-            <button
-              type="button"
-              onClick={removeContact}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/30 bg-destructive/5 py-3 text-sm font-semibold text-destructive hover:bg-destructive/10"
-            >
-              <UserX className="h-4 w-4" />
-              Remove contact entirely
-            </button>
-          </div>
-
           {/* Call log — every logged call for this person over time, newest
               first. Sits at the bottom (Req #1); the top shortcut scrolls here.
               Each entry is correctable (mis-tapped outcome) or deletable so the
@@ -817,5 +912,15 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
         </div>
       )}
     </Sheet>
+
+    {/* Standard New-Campaign flow, pre-attached to this person and stacked on
+        top of the detail so cancelling returns here. */}
+    <CampaignCreateSheet
+      open={createOpen}
+      onClose={() => setCreateOpen(false)}
+      onCreated={onCampaignCreated}
+      contactIds={contactId ? [contactId] : []}
+    />
+    </>
   );
 }
