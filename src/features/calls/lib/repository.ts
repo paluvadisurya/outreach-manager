@@ -1,8 +1,12 @@
-import type { CallEntry, CallOutcome } from "@/lib/types";
+import type { CallEntry, CallOutcome, ContactRating } from "@/lib/types";
 import { getDB } from "@/lib/db/db";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
+import { categoriesRepo } from "@/features/categories/lib/repository";
+import { contactsRepo } from "@/features/contacts/lib/repository";
 import { eventsRepo } from "@/features/analytics/lib/repository";
 import { recomputeFromHistory } from "./display";
+
+const ALL_RATINGS: ContactRating[] = ["connect", "no_answer", "avoid"];
 
 /**
  * The call list: contacts the user intends to phone, with their latest outcome,
@@ -94,6 +98,37 @@ export const callsRepo = {
       });
     });
     eventsRepo.log("call_logged", { ref: contactId, outcome });
+  },
+
+  /**
+   * Set (or clear, with `null`) a person's persistent traffic-light rating and
+   * mirror it into the managed rating-colour categories: add the contact to the
+   * chosen rating's category and remove them from the other two. The selected
+   * category is created on first use; the others are only touched if they
+   * already exist, so we never spawn empty managed groups. This is the single
+   * source of truth for rating-category membership.
+   */
+  async setRating(
+    contactId: string,
+    rating: ContactRating | null,
+  ): Promise<void> {
+    const entry = await getDB().calls.get(contactId);
+    if (!entry) return;
+    await getDB().calls.update(contactId, {
+      rating: rating ?? undefined,
+      updatedAt: Date.now(),
+    });
+    for (const r of ALL_RATINGS) {
+      if (r === rating) {
+        const category = await categoriesRepo.findOrCreateRatingCategory(r);
+        await contactsRepo.addToCategory([contactId], category.id);
+      } else {
+        const category = await categoriesRepo.getRatingCategory(r);
+        if (category) {
+          await contactsRepo.removeFromCategory([contactId], category.id);
+        }
+      }
+    }
   },
 
   /**

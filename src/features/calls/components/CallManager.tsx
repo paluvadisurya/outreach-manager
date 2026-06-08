@@ -22,6 +22,11 @@ import {
   LayoutTemplate,
   CheckCircle2,
   History,
+  PhoneCall,
+  PhoneOff,
+  Ban,
+  Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { haptic } from "@/lib/haptics";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -32,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import type { CallEntry, Contact } from "@/lib/types";
+import type { CallEntry, Contact, ContactRating } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
 import { templatesRepo } from "@/features/templates/lib/repository";
@@ -40,6 +45,8 @@ import { CampaignCreateSheet } from "@/features/campaigns/components/CampaignCre
 import { callsRepo } from "../lib/repository";
 import {
   OUTCOME_META,
+  RATING_META,
+  RATING_ORDER,
   formatCallTime,
   sortCalls,
   CALL_SORTS,
@@ -47,6 +54,16 @@ import {
 } from "../lib/display";
 import { AddToCallSheet } from "./AddToCallSheet";
 import { CallDetailSheet } from "./CallDetailSheet";
+
+/** Icon per traffic-light rating, paired with the shared `RATING_META` styling. */
+const RATING_ICON: Record<ContactRating, LucideIcon> = {
+  connect: PhoneCall,
+  no_answer: PhoneOff,
+  avoid: Ban,
+};
+
+/** The dashboard stat tiles that double as a quick list filter (Req #4). */
+type StatusFilter = "toCall" | "called" | "noAnswer" | "scheduled" | "messaged";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -73,19 +90,41 @@ export function CallManager() {
   // Dashboard filter (Req #3): narrow the list + stats to one campaign or
   // template. At most one active filter at a time.
   const [filter, setFilter] = React.useState<
-    { kind: "campaign" | "template"; id: string } | null
+    { kind: "campaign" | "template" | "rating"; id: string } | null
   >(null);
   const [filterOpen, setFilterOpen] = React.useState(false);
+  // Quick status filter driven by tapping a dashboard stat tile (Req #4). It
+  // composes on top of the chip filter + search and narrows only the rendered
+  // list — the tile counts themselves stay computed over the un-narrowed set so
+  // the numbers don't collapse to the one you tapped.
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter | null>(
+    null,
+  );
 
   // Deep link from the campaign screen (Req #2): open a person's call detail.
+  // `from` carries where the jump originated so closing the sheet returns there
+  // (e.g. back to the campaign) instead of stranding the user on the Call tab.
   const focusContactId = searchParams.get("contact");
+  const fromParam = searchParams.get("from");
   const focusHandled = React.useRef(false);
+  const returnTo = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!focusHandled.current && focusContactId && calls !== undefined) {
       focusHandled.current = true;
+      returnTo.current =
+        fromParam && fromParam.startsWith("/") ? fromParam : null;
       setOpenContactId(focusContactId);
     }
-  }, [focusContactId, calls]);
+  }, [focusContactId, fromParam, calls]);
+
+  // Close the detail sheet — and if this was the contact we deep-linked to from
+  // a campaign, navigate back to that origin (consumed once).
+  const closeDetail = React.useCallback(() => {
+    const dest = openContactId === focusContactId ? returnTo.current : null;
+    returnTo.current = null;
+    setOpenContactId(null);
+    if (dest) router.push(dest);
+  }, [openContactId, focusContactId, router]);
 
   // Campaign id → the campaign, and campaign id → its template ids, for filtering.
   const campaignMap = React.useMemo(() => {
@@ -108,12 +147,15 @@ export function CallManager() {
 
   const loading = calls === undefined || contacts === undefined;
 
-  const filtered = React.useMemo(() => {
+  // Chip filter + search only. The dashboard stats are computed over this so the
+  // tile counts stay stable regardless of which tile is tapped.
+  const baseFiltered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = calls ?? [];
     if (filter) {
       list = list.filter((e) => {
         if (filter.kind === "campaign") return e.campaignIds.includes(filter.id);
+        if (filter.kind === "rating") return e.rating === filter.id;
         // Template filter: any linked campaign renders from this template.
         return e.campaignIds.some((cid) =>
           campaignMap.get(cid)?.templateIds.includes(filter.id),
@@ -128,6 +170,25 @@ export function CallManager() {
     return list;
   }, [calls, contactMap, campaignMap, query, filter]);
 
+  // The rendered list also honours the tapped stat tile (Req #4).
+  const filtered = React.useMemo(() => {
+    if (!statusFilter) return baseFiltered;
+    return baseFiltered.filter((e) => {
+      switch (statusFilter) {
+        case "toCall":
+          return e.outcome === "pending";
+        case "called":
+          return e.outcome === "called";
+        case "noAnswer":
+          return e.outcome === "no_answer";
+        case "scheduled":
+          return Boolean(e.nextCallAt);
+        case "messaged":
+          return Boolean(sentIds?.has(e.contactId));
+      }
+    });
+  }, [baseFiltered, statusFilter, sentIds]);
+
   const nameFor = (e: CallEntry) => {
     const c = contactMap.get(e.contactId);
     return c?.fullName || c?.phone || e.contactId;
@@ -141,7 +202,8 @@ export function CallManager() {
     [filtered, sort, contactMap],
   );
 
-  // High-level dashboard stats over the currently-filtered list (Req #3).
+  // High-level dashboard stats over the chip-filtered/searched list (Req #3).
+  // Intentionally NOT narrowed by the tapped tile, so the numbers stay put.
   const stats = React.useMemo(() => {
     let toCall = 0,
       called = 0,
@@ -149,7 +211,7 @@ export function CallManager() {
       scheduled = 0,
       attempts = 0,
       messaged = 0;
-    for (const e of filtered) {
+    for (const e of baseFiltered) {
       if (e.outcome === "pending") toCall++;
       else if (e.outcome === "called") called++;
       else if (e.outcome === "no_answer") noAnswer++;
@@ -158,7 +220,7 @@ export function CallManager() {
       if (sentIds?.has(e.contactId)) messaged++;
     }
     return {
-      total: filtered.length,
+      total: baseFiltered.length,
       toCall,
       called,
       noAnswer,
@@ -166,12 +228,14 @@ export function CallManager() {
       attempts,
       messaged,
     };
-  }, [filtered, sentIds]);
+  }, [baseFiltered, sentIds]);
 
   const filterLabel = filter
     ? filter.kind === "campaign"
       ? (campaignMap.get(filter.id)?.name ?? "Campaign")
-      : (templates.find((t) => t.id === filter.id)?.name ?? "Template")
+      : filter.kind === "rating"
+        ? RATING_META[filter.id as ContactRating].label
+        : (templates.find((t) => t.id === filter.id)?.name ?? "Template")
     : null;
 
   const exitSelect = React.useCallback(() => {
@@ -242,6 +306,26 @@ export function CallManager() {
     }
     haptic("warning");
     await contactsRepo.remove(ids);
+    setRemoveMenuOpen(false);
+    exitSelect();
+  };
+
+  // Permanently erase the picked contacts — record, call history and campaign
+  // messages — with no undo. Pairs with the rating filter to clear out a whole
+  // colour group (e.g. every 🔴 "Don't call again" person) at once.
+  const deleteForever = async () => {
+    const ids = [...picked];
+    if (ids.length === 0) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Permanently delete ${ids.length} contact${ids.length === 1 ? "" : "s"}? This can't be undone — their contact details, call history and campaign messages are erased forever.`,
+      )
+    ) {
+      return;
+    }
+    haptic("warning");
+    await contactsRepo.delete(ids);
     setRemoveMenuOpen(false);
     exitSelect();
   };
@@ -372,6 +456,10 @@ export function CallManager() {
             >
               {filter.kind === "campaign" ? (
                 <Megaphone className="h-3.5 w-3.5 shrink-0" />
+              ) : filter.kind === "rating" ? (
+                React.createElement(RATING_ICON[filter.id as ContactRating], {
+                  className: "h-3.5 w-3.5 shrink-0",
+                })
               ) : (
                 <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
               )}
@@ -380,46 +468,103 @@ export function CallManager() {
             </button>
           )}
           {/* A wrapping grid (not a horizontal scroller) so no stat is ever
-              clipped off-screen on a narrow phone (Req: stats overflow/hidden). */}
+              clipped off-screen on a narrow phone (Req: stats overflow/hidden).
+              Tiles backed by a `status` double as a quick list filter (Req #4):
+              tapping toggles it and the tile shows selected. "Attempts" is a pure
+              total, so it stays a plain, non-interactive tile. */}
           <div className="grid grid-cols-3 gap-1.5">
             {(
               [
-                { label: "To call", value: stats.toCall, tone: "text-foreground" },
-                { label: "Called", value: stats.called, tone: "text-primary" },
+                {
+                  label: "To call",
+                  value: stats.toCall,
+                  tone: "text-foreground",
+                  status: "toCall",
+                },
+                {
+                  label: "Called",
+                  value: stats.called,
+                  tone: "text-primary",
+                  status: "called",
+                },
                 {
                   label: "No answer",
                   value: stats.noAnswer,
                   tone: "text-amber-600",
+                  status: "noAnswer",
                 },
                 {
                   label: "Scheduled",
                   value: stats.scheduled,
                   tone: "text-foreground",
+                  status: "scheduled",
                 },
                 {
                   label: "Messaged",
                   value: stats.messaged,
                   tone: "text-primary",
+                  status: "messaged",
                 },
                 {
                   label: "Attempts",
                   value: stats.attempts,
                   tone: "text-muted-foreground",
                 },
-              ] as { label: string; value: number; tone: string }[]
-            ).map((s) => (
-              <div
-                key={s.label}
-                className="flex flex-col items-center rounded-2xl bg-elevated px-2 py-2 ring-1 ring-inset ring-hairline"
-              >
-                <span className={cn("text-base font-bold tabular-nums", s.tone)}>
-                  {s.value}
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {s.label}
-                </span>
-              </div>
-            ))}
+              ] as {
+                label: string;
+                value: number;
+                tone: string;
+                status?: StatusFilter;
+              }[]
+            ).map((s) => {
+              const selected = s.status != null && statusFilter === s.status;
+              const tileClass = cn(
+                "flex flex-col items-center rounded-2xl px-2 py-2 ring-1 ring-inset transition-all",
+                selected
+                  ? "bg-accent ring-primary/40"
+                  : "bg-elevated ring-hairline",
+              );
+              const body = (
+                <>
+                  <span
+                    className={cn(
+                      "text-base font-bold tabular-nums",
+                      s.tone,
+                    )}
+                  >
+                    {s.value}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold uppercase tracking-wide",
+                      selected ? "text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {s.label}
+                  </span>
+                </>
+              );
+              return s.status == null ? (
+                <div key={s.label} className={tileClass}>
+                  {body}
+                </div>
+              ) : (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => {
+                    haptic("light");
+                    setStatusFilter((cur) =>
+                      cur === s.status ? null : s.status!,
+                    );
+                  }}
+                  aria-pressed={selected}
+                  className={cn(tileClass, "active:scale-[0.97]")}
+                >
+                  {body}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -480,18 +625,30 @@ export function CallManager() {
                         : "border-hairline",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold",
-                        selectMode && sel
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-accent text-accent-foreground",
-                      )}
-                    >
-                      {selectMode && sel ? (
-                        <CheckSquare className="h-5 w-5" />
-                      ) : (
-                        initials(name)
+                    <span className="relative mt-0.5 shrink-0">
+                      <span
+                        className={cn(
+                          "flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-bold",
+                          selectMode && sel
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-accent text-accent-foreground",
+                        )}
+                      >
+                        {selectMode && sel ? (
+                          <CheckSquare className="h-5 w-5" />
+                        ) : (
+                          initials(name)
+                        )}
+                      </span>
+                      {/* Traffic-light rating dot — glanceable disposition. */}
+                      {!selectMode && e.rating && (
+                        <span
+                          aria-label={RATING_META[e.rating].label}
+                          className={cn(
+                            "absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full ring-2 ring-card",
+                            RATING_META[e.rating].dot,
+                          )}
+                        />
                       )}
                     </span>
 
@@ -669,6 +826,23 @@ export function CallManager() {
               </span>
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={deleteForever}
+            className="flex w-full items-center gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-left transition-colors hover:bg-destructive/15"
+          >
+            <Trash2 className="h-5 w-5 shrink-0 text-destructive" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-destructive">
+                Delete forever
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Permanently erases their contact details, call history and
+                campaign messages. This can&apos;t be undone.
+              </span>
+            </span>
+          </button>
         </div>
       </Sheet>
 
@@ -740,6 +914,48 @@ export function CallManager() {
             <span className="font-semibold text-foreground">Everyone</span>
             {filter === null && <Check className="h-5 w-5 text-primary" />}
           </button>
+
+          <div className="space-y-2">
+            <p className="px-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              By rating
+            </p>
+            {RATING_ORDER.map((r) => {
+              const active = filter?.kind === "rating" && filter.id === r;
+              const Icon = RATING_ICON[r];
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => {
+                    haptic("light");
+                    setFilter({ kind: "rating", id: r });
+                    setFilterOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left shadow-soft transition-all active:scale-[0.99]",
+                    active
+                      ? "border-primary/40 bg-accent ring-1 ring-primary/20"
+                      : "border-hairline bg-card hover:bg-secondary",
+                  )}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                        RATING_META[r].idle,
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="truncate font-semibold text-foreground">
+                      {RATING_META[r].label}
+                    </span>
+                  </span>
+                  {active && <Check className="h-5 w-5 shrink-0 text-primary" />}
+                </button>
+              );
+            })}
+          </div>
 
           {campaigns.length > 0 && (
             <div className="space-y-2">
@@ -817,10 +1033,7 @@ export function CallManager() {
 
       <AddToCallSheet open={addOpen} onClose={() => setAddOpen(false)} />
 
-      <CallDetailSheet
-        contactId={openContactId}
-        onClose={() => setOpenContactId(null)}
-      />
+      <CallDetailSheet contactId={openContactId} onClose={closeDetail} />
 
       <CampaignCreateSheet
         open={campaignOpen}

@@ -301,13 +301,23 @@ export const campaignsRepo = {
     const campaign = await this.get(campaignId);
     if (!campaign) return { added: 0, removed: 0 };
 
-    const desired = campaign.categoryIds.length
+    // The audience is the union of the category source AND any explicitly-added
+    // contacts (manual adds via `addContacts`), de-duped and excluding
+    // soft-removed people. Unioning both means a contact added by hand to a
+    // category-based campaign isn't dropped on the next refresh.
+    const fromCategories = campaign.categoryIds.length
       ? await contactsForCategories(campaign.categoryIds)
-      : (
-          await Promise.all(
-            campaign.contactIds.map((id) => contactsRepo.get(id)),
-          )
-        ).filter((c): c is Contact => Boolean(c));
+      : [];
+    const fromContactIds = (
+      await Promise.all(campaign.contactIds.map((id) => contactsRepo.get(id)))
+    ).filter((c): c is Contact => c != null && !c.removed);
+    const seen = new Set<string>();
+    const desired: Contact[] = [];
+    for (const c of [...fromCategories, ...fromContactIds]) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      desired.push(c);
+    }
     const desiredIds = new Set(desired.map((c) => c.id));
 
     const existing = await this.messagesFor(campaignId);
@@ -348,6 +358,66 @@ export const campaignsRepo = {
       });
     });
     return { added: newMessages.length, removed: toRemove.length };
+  },
+
+  /**
+   * Manually add contacts to an existing campaign (Req: cut the friction of
+   * putting someone into a campaign). They're recorded on the campaign's explicit
+   * `contactIds` audience and get a message rendered from the primary template,
+   * appended after the current max order. Contacts already in the campaign, plus
+   * unknown or soft-removed ones, are skipped. Returns the number of messages
+   * added. Recording them on `contactIds` means they survive a later
+   * `refreshContacts` (which unions categories + contactIds).
+   */
+  async addContacts(campaignId: string, contactIds: string[]): Promise<number> {
+    const campaign = await this.get(campaignId);
+    if (!campaign || contactIds.length === 0) return 0;
+
+    const existing = await this.messagesFor(campaignId);
+    const existingIds = new Set(existing.map((m) => m.contactId));
+
+    // Resolve the requested contacts once; keep only known, active ones.
+    const requested = await Promise.all(
+      [...new Set(contactIds)].map((id) => contactsRepo.get(id)),
+    );
+    const valid = requested.filter(
+      (c): c is Contact => c != null && !c.removed,
+    );
+    const toAdd = valid.filter((c) => !existingIds.has(c.id));
+
+    // Record every valid contact on the explicit audience, even those already
+    // messaged (e.g. category-sourced), so the manual add is sticky on refresh.
+    const nextContactIds = [
+      ...new Set([...campaign.contactIds, ...valid.map((c) => c.id)]),
+    ];
+
+    const settings = await settingsRepo.get();
+    const primary = await templatesRepo.get(campaign.primaryTemplateId);
+    const maxOrder = existing.reduce((max, m) => Math.max(max, m.order), -1);
+    const now = Date.now();
+    const newMessages =
+      primary && toAdd.length
+        ? generateCampaignMessages(
+            campaignId,
+            toAdd,
+            primary.body,
+            campaign.primaryTemplateId,
+            now,
+            settings,
+            maxOrder + 1,
+          )
+        : [];
+
+    const db = getDB();
+    await db.transaction("rw", db.campaigns, db.campaignMessages, async () => {
+      if (newMessages.length) await db.campaignMessages.bulkAdd(newMessages);
+      await db.campaigns.update(campaignId, {
+        contactIds: nextContactIds,
+        total: existing.length + newMessages.length,
+        updatedAt: now,
+      });
+    });
+    return newMessages.length;
   },
 
   /** Remove a single contact's message from the campaign and renumber the rest. */

@@ -1,4 +1,4 @@
-import type { Category } from "@/lib/types";
+import type { Category, ContactRating } from "@/lib/types";
 import { getDB } from "@/lib/db/db";
 import { uid } from "@/lib/id";
 
@@ -8,6 +8,21 @@ import { uid } from "@/lib/id";
  * reserved name so the triage tool can find-or-create it deterministically.
  */
 export const SHORTLIST_NAME = "⭐ Shortlist";
+
+/**
+ * Managed categories mirroring the call-list traffic-light rating. Like the
+ * Shortlist, these are normal categories with reserved names + fixed colours, so
+ * a person's disposition shows up in People and can power campaigns/bulk tools.
+ * Membership is kept in sync from a single place — `callsRepo.setRating`.
+ */
+export const RATING_CATEGORY: Record<
+  ContactRating,
+  { name: string; color: string }
+> = {
+  connect: { name: "🟢 Connect again", color: "#16a34a" },
+  no_answer: { name: "🟡 Didn't pick", color: "#ca8a04" },
+  avoid: { name: "🔴 Don't call again", color: "#dc2626" },
+};
 
 const PALETTE = [
   "#16a34a",
@@ -41,13 +56,33 @@ export const categoriesRepo = {
     return this.create(SHORTLIST_NAME);
   },
 
-  async create(name: string): Promise<Category> {
+  /** The managed rating-colour group for a disposition, if it exists yet. */
+  async getRatingCategory(
+    rating: ContactRating,
+  ): Promise<Category | undefined> {
+    return getDB()
+      .categories.where("name")
+      .equals(RATING_CATEGORY[rating].name)
+      .first();
+  },
+
+  /** Find the managed rating-colour group, creating it on first use. */
+  async findOrCreateRatingCategory(
+    rating: ContactRating,
+  ): Promise<Category> {
+    const existing = await this.getRatingCategory(rating);
+    if (existing) return existing;
+    const { name, color } = RATING_CATEGORY[rating];
+    return this.create(name, color);
+  },
+
+  async create(name: string, color?: string): Promise<Category> {
     const trimmed = name.trim();
     const existingCount = await getDB().categories.count();
     const category: Category = {
       id: uid(),
       name: trimmed,
-      color: PALETTE[existingCount % PALETTE.length],
+      color: color ?? PALETTE[existingCount % PALETTE.length],
       createdAt: Date.now(),
     };
     await getDB().categories.add(category);
@@ -77,11 +112,16 @@ export const categoriesRepo = {
     });
   },
 
-  /** Map of categoryId -> number of contacts, for display in the category list. */
+  /**
+   * Map of categoryId -> number of *active* contacts, for display in the
+   * category list. Soft-removed contacts keep their memberships (so a restore
+   * brings them back) but must not inflate the live count.
+   */
   async memberCounts(): Promise<Record<string, number>> {
     const db = getDB();
     const counts: Record<string, number> = {};
     await db.contacts.each((c) => {
+      if (c.removed) return;
       for (const id of c.categoryIds) {
         counts[id] = (counts[id] ?? 0) + 1;
       }

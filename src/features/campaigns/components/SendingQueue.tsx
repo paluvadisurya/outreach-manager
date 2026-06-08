@@ -23,6 +23,7 @@ import {
   Plus,
   Link2,
   UserMinus,
+  UserPlus,
   UserX,
   FolderMinus,
   Users,
@@ -47,6 +48,7 @@ import { useSettings } from "@/features/settings/hooks/useSettings";
 import { campaignsRepo } from "../lib/repository";
 import { computeProgress, resumeIndex } from "../lib/progress";
 import { buildWaLink, openWhatsApp } from "../lib/whatsapp";
+import { AddPeopleToCampaignSheet } from "./AddPeopleToCampaignSheet";
 
 const STATUS_META: Record<MessageStatus, { label: string; variant: "success" | "secondary" | "destructive" | "default" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -95,6 +97,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   const [renaming, setRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState("");
   const [addTemplateOpen, setAddTemplateOpen] = React.useState(false);
+  const [addPeopleOpen, setAddPeopleOpen] = React.useState(false);
   const [personMenuOpen, setPersonMenuOpen] = React.useState(false);
   // The review-list row whose remove options are open (Req 1 follow-up).
   const [reviewRemoveTarget, setReviewRemoveTarget] =
@@ -319,7 +322,10 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
       await callsRepo.addContacts([cur.contactId], [campaignId]);
     }
     haptic("light");
-    router.push(`/call?contact=${encodeURIComponent(cur.contactId)}`);
+    // Carry the origin so closing the call view returns to this campaign.
+    router.push(
+      `/call?contact=${encodeURIComponent(cur.contactId)}&from=${encodeURIComponent(`/campaigns/${campaignId}`)}`,
+    );
   };
 
   // From the review list's remove options (Req 1): drop the person from this
@@ -953,6 +959,26 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             </span>
           </button>
 
+          {/* Add people — manually drop contacts into this campaign (Req #3). */}
+          <button
+            type="button"
+            onClick={() => {
+              setManageOpen(false);
+              setAddPeopleOpen(true);
+            }}
+            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
+          >
+            <UserPlus className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-foreground">
+                Add people
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                Hand-pick contacts to add. They stay on a refresh.
+              </span>
+            </span>
+          </button>
+
           {/* Reset progress */}
           <button
             type="button"
@@ -1019,6 +1045,22 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           </ul>
         )}
       </Sheet>
+
+      {/* Manually add contacts to this campaign (Req #3). */}
+      <AddPeopleToCampaignSheet
+        open={addPeopleOpen}
+        campaignId={campaignId}
+        onClose={() => setAddPeopleOpen(false)}
+        onAdded={(count) => {
+          if (typeof window !== "undefined") {
+            window.alert(
+              count === 0
+                ? "Those contacts are already in this campaign."
+                : `Added ${count} ${count === 1 ? "person" : "people"} to this campaign.`,
+            );
+          }
+        }}
+      />
 
       {/* Remove options for a person tapped in the review list (Req 1): from this
           campaign only, or as a contact everywhere. */}

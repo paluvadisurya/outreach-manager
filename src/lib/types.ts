@@ -135,6 +135,15 @@ export interface CampaignMessage {
 export type CallOutcome = "pending" | "called" | "no_answer" | "skipped";
 
 /**
+ * A persistent, forward-looking disposition for a person on the call list — a
+ * traffic-light rating distinct from the per-call `CallOutcome`. `connect` (the
+ * conversation went well, call again), `no_answer` (didn't pick), and `avoid`
+ * (don't call again). Setting one mirrors the contact into a managed
+ * rating-colour category.
+ */
+export type ContactRating = "connect" | "no_answer" | "avoid";
+
+/**
  * A contact placed on the call list. There is at most one entry per contact
  * (keyed by the contact id). It tracks the latest outcome, a lightweight attempt
  * history, the campaigns linked for talking-point context, and an optional
@@ -147,6 +156,11 @@ export interface CallEntry {
   /** Campaigns linked to this contact for talking-point context. */
   campaignIds: string[];
   outcome: CallOutcome;
+  /**
+   * Persistent traffic-light disposition for this person, mirrored into a
+   * managed rating-colour category. Undefined until the user sets one.
+   */
+  rating?: ContactRating;
   /** Number of actual call attempts (called / no_answer). */
   attempts: number;
   /** When the last outcome was logged. */
