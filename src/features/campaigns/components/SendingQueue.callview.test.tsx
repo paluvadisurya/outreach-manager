@@ -68,6 +68,27 @@ function returnFocusContactId(): string | null {
   return new URLSearchParams(from.slice(from.indexOf("?") + 1)).get("contact");
 }
 
+/**
+ * Open the visible person's call view through the single smart button. When
+ * they're not on the call list yet the button reads "Add to call view" (a first
+ * tap adds them and flips it); once on the list it reads "Call view" and opens.
+ */
+async function openVisibleCallView() {
+  const add = screen.queryByRole("button", {
+    name: /add this person to the call list/i,
+  });
+  if (add) {
+    await userEvent.click(add);
+    // Wait for the live call list to flip the button into its open state.
+    await screen.findByRole("button", {
+      name: /open this person's call view/i,
+    });
+  }
+  await userEvent.click(
+    screen.getByRole("button", { name: /open this person's call view/i }),
+  );
+}
+
 describe("Campaigns 'Call view' targets the person on screen", () => {
   beforeEach(() => {
     currentParams = new URLSearchParams();
@@ -84,9 +105,7 @@ describe("Campaigns 'Call view' targets the person on screen", () => {
     render(<SendingQueue campaignId={messages[0]!.campaignId} />);
     await screen.findByText(first.contactName);
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /open this person's call view/i }),
-    );
+    await openVisibleCallView();
 
     await waitFor(() => expect(pushedContactId()).toBe(first.contactId));
   });
@@ -94,15 +113,13 @@ describe("Campaigns 'Call view' targets the person on screen", () => {
   it("adds the NEW person then opens THAT same person (the reported flow)", async () => {
     const { messages } = await setup();
     const first = messages[0]!;
-    // first is NOT on the call list yet → 'Call view' must add then open them.
+    // first is NOT on the call list yet → the button adds, flips, then opens them.
     expect(await callsRepo.get(first.contactId)).toBeUndefined();
 
     render(<SendingQueue campaignId={messages[0]!.campaignId} />);
     await screen.findByText(first.contactName);
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /open this person's call view/i }),
-    );
+    await openVisibleCallView();
 
     // The newly-added call entry and the deep-link target are the SAME person.
     await waitFor(async () => {
@@ -120,9 +137,7 @@ describe("Campaigns 'Call view' targets the person on screen", () => {
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     await screen.findByText(messages[1]!.contactName);
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /open this person's call view/i }),
-    );
+    await openVisibleCallView();
 
     await waitFor(() => expect(pushedContactId()).toBe(messages[1]!.contactId));
     // And never the neighbour we moved away from.
@@ -136,9 +151,7 @@ describe("Campaigns 'Call view' targets the person on screen", () => {
 
     render(<SendingQueue campaignId={messages[0]!.campaignId} />);
     await screen.findByText(first.contactName);
-    await userEvent.click(
-      screen.getByRole("button", { name: /open this person's call view/i }),
-    );
+    await openVisibleCallView();
 
     // Closing the call view returns to /campaigns/X?contact=<this person>, so the
     // queue re-focuses them by identity rather than a stale numeric index.

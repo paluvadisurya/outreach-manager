@@ -37,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { nextDeepLinkTarget, safeReturnPath } from "@/lib/deep-link";
+import { safeReturnPath } from "@/lib/deep-link";
 import type { CallEntry, Contact, ContactRating } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
@@ -107,23 +107,28 @@ export function CallManager() {
   // (e.g. back to the campaign) instead of stranding the user on the Call tab.
   const focusContactId = searchParams.get("contact");
   const fromParam = searchParams.get("from");
-  // Track which `?contact=` we last opened — keyed on the parameter VALUE, not on
-  // mount. Next.js can reuse this page's subtree across a soft navigation, so a
-  // fire-once-per-mount guard would ignore a new target and strand the sheet on
-  // the previous person (the "Call view opened the wrong person" bug).
-  const handledContact = React.useRef<string | null>(null);
+  // A per-tap nonce from the campaign deep link. Keying on it (rather than the
+  // contact id, or mount) makes every "Call view" tap a distinct event we honor
+  // exactly once: the right person opens even when Next.js reuses this page's
+  // cached subtree across a soft navigation (which keeps refs/state alive), AND
+  // re-tapping the SAME person reopens them. Falls back to the contact id for
+  // links without a nonce. This is the fix for "Call view shows the last person
+  // / won't reopen the one I just added".
+  const focusNonce = searchParams.get("t");
+  const handledKey = React.useRef<string | null>(null);
   const returnTo = React.useRef<string | null>(null);
   React.useEffect(() => {
-    // Purely parameter-driven: open whatever `?contact=` points at the moment it
-    // changes, without waiting on the list query underneath (the detail sheet
-    // loads its own data). This guarantees the freshly-linked person opens — and
-    // re-opens on a changed target even when the screen is reused.
-    const target = nextDeepLinkTarget(handledContact.current, focusContactId);
-    if (!target) return;
-    handledContact.current = target;
+    if (!focusContactId) return;
+    const key = focusNonce ?? focusContactId;
+    if (key === handledKey.current) return;
+    handledKey.current = key;
     returnTo.current = safeReturnPath(fromParam);
-    setOpenContactId(target);
-  }, [focusContactId, fromParam]);
+    // Open whatever `?contact=` points at right now, without waiting on the list
+    // query underneath (the detail sheet loads its own data via live queries, so
+    // a freshly-added person is ready). Setting it unconditionally also clears
+    // any stale person left open in a reused subtree.
+    setOpenContactId(focusContactId);
+  }, [focusContactId, fromParam, focusNonce]);
 
   // Close the detail sheet — and if this was the contact we deep-linked to from
   // a campaign, navigate back to that origin (consumed once).
