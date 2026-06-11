@@ -28,6 +28,7 @@ import {
   FolderMinus,
   Users,
   CircleMinus,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HapticButton } from "@/components/ui/haptic-button";
@@ -89,6 +90,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!cur) return false;
     return Boolean(await callsRepo.get(cur.contactId));
   }, [messages, index]);
+  // Transient "Adding…" state for the single call-view button so the tap feels
+  // responsive while the write lands and `onCallList` flips it to "Call view".
+  const [addingToCall, setAddingToCall] = React.useState(false);
 
   const [reviewOpen, setReviewOpen] = React.useState(false);
   const [reviewFilter, setReviewFilter] = React.useState<MessageStatus | "all">(
@@ -309,41 +313,45 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   };
 
   // Add the person in focus to the call list, linking this campaign so its
-  // message shows up there as a talking point (Req 5). Idempotent.
+  // message shows up there as a talking point (Req 5). Idempotent. The call list
+  // (a live query) refreshes on its own, flipping the button to "Call view" and
+  // pre-warming the detail data so the follow-up open lands instantly.
   const addCurrentToCallList = async () => {
-    if (!messages) return;
+    if (!messages || addingToCall) return;
     const cur = messages[Math.min(index, messages.length - 1)];
     if (!cur) return;
     haptic("light");
-    await callsRepo.addContacts([cur.contactId], [campaignId]);
+    setAddingToCall(true);
+    try {
+      await callsRepo.addContacts([cur.contactId], [campaignId]);
+    } finally {
+      setAddingToCall(false);
+    }
   };
 
   // Jump from the campaign to this person's view in the Call section (Req #2).
-  // If they're not on the call list yet, ask before adding — then open them.
+  // The button only enters this state once they're on the call list, but we
+  // guard with a silent add so a direct call still lands them there first.
   const viewInCallList = async () => {
     if (!messages) return;
     const cur = messages[Math.min(index, messages.length - 1)];
     if (!cur) return;
-    if (!onCallList) {
-      if (
-        typeof window !== "undefined" &&
-        !window.confirm(
-          `${cur.contactName} isn't on your call list yet. Add them and open their call view?`,
-        )
-      ) {
-        return;
-      }
+    if (!(await callsRepo.get(cur.contactId))) {
       await callsRepo.addContacts([cur.contactId], [campaignId]);
     }
     haptic("light");
     // Pin the queue to this person so the position is coherent if we resume by
     // index later, and carry the contact in the return origin so closing the
     // call view brings the campaign back to THIS exact person (identity-stable),
-    // never whichever message the stored index happens to resolve to.
+    // never whichever message the stored index happens to resolve to. The `t`
+    // nonce makes every tap a distinct deep link, so the Call screen reliably
+    // (re)opens THIS person even when Next.js reuses its cached subtree — the
+    // fix for "Call view shows the last person / won't reopen the same one".
     persistIndex(Math.min(index, messages.length - 1));
     const back = `/campaigns/${campaignId}?contact=${encodeURIComponent(cur.contactId)}`;
+    const nonce = Date.now().toString(36);
     router.push(
-      `/call?contact=${encodeURIComponent(cur.contactId)}&from=${encodeURIComponent(back)}`,
+      `/call?contact=${encodeURIComponent(cur.contactId)}&from=${encodeURIComponent(back)}&t=${nonce}`,
     );
   };
 
@@ -670,44 +678,45 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           </div>
         </div>
 
-        {/* Tie messaging to the call list — drop this person onto it so their
-            message rides along as a talking point (Req 5), and jump straight to
-            their call view (Req 2). */}
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={addCurrentToCallList}
-            disabled={Boolean(onCallList)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold transition-colors",
-              onCallList
-                ? // Already added — muted, clearly a settled/done state.
-                  "border-border/60 bg-secondary/40 text-muted-foreground"
-                : // Actionable — subtly highlighted so it stands apart from "added".
-                  "border-primary/30 bg-accent/60 text-accent-foreground hover:bg-accent",
-            )}
-          >
-            {onCallList ? (
-              <>
-                <Check className="h-4 w-4 text-primary" />
-                On your call list
-              </>
-            ) : (
-              <>
-                <Phone className="h-4 w-4 text-primary" />
-                Add to call list
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={viewInCallList}
-            aria-label="Open this person's call view"
-            className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-hairline bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-soft transition-colors hover:bg-secondary active:scale-[0.99]"
-          >
-            <PhoneForwarded className="h-4 w-4 text-primary" />
-            Call view
-          </button>
+        {/* One smart call-view button, two states (Req 2):
+            • Not on the call list → an orange "Add to call view" call-to-action.
+              Tapping it adds THIS person (and links the campaign as a talking
+              point), the live call list refreshes, and the button flips below.
+            • On the call list → "Call view", which opens their call screen.
+            Keeping a single button always tied to the visible person means the
+            add and the open can never target two different people. */}
+        <div className="mt-3">
+          {onCallList ? (
+            <button
+              type="button"
+              onClick={viewInCallList}
+              aria-label="Open this person's call view"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-hairline bg-card py-3 text-sm font-semibold text-foreground shadow-soft transition-colors hover:bg-secondary active:scale-[0.99]"
+            >
+              <PhoneForwarded className="h-4 w-4 text-primary" />
+              Call view
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={addCurrentToCallList}
+              disabled={addingToCall}
+              aria-label="Add this person to the call list"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-orange-600 active:scale-[0.99] disabled:opacity-70"
+            >
+              {addingToCall ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Adding…
+                </>
+              ) : (
+                <>
+                  <Phone className="h-4 w-4" />
+                  Add to call view
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Secondary marks — compact, one row, out of the primary thumb path */}
