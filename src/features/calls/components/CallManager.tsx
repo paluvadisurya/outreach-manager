@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { nextDeepLinkTarget, safeReturnPath } from "@/lib/deep-link";
 import type { CallEntry, Contact, ContactRating } from "@/lib/types";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { campaignsRepo } from "@/features/campaigns/lib/repository";
@@ -106,15 +107,19 @@ export function CallManager() {
   // (e.g. back to the campaign) instead of stranding the user on the Call tab.
   const focusContactId = searchParams.get("contact");
   const fromParam = searchParams.get("from");
-  const focusHandled = React.useRef(false);
+  // Track which `?contact=` we last opened — keyed on the parameter VALUE, not on
+  // mount. Next.js can reuse this page's subtree across a soft navigation, so a
+  // fire-once-per-mount guard would ignore a new target and strand the sheet on
+  // the previous person (the "Call view opened the wrong person" bug).
+  const handledContact = React.useRef<string | null>(null);
   const returnTo = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!focusHandled.current && focusContactId && calls !== undefined) {
-      focusHandled.current = true;
-      returnTo.current =
-        fromParam && fromParam.startsWith("/") ? fromParam : null;
-      setOpenContactId(focusContactId);
-    }
+    if (calls === undefined) return; // wait for the list underneath to be ready
+    const target = nextDeepLinkTarget(handledContact.current, focusContactId);
+    if (!target) return;
+    handledContact.current = target;
+    returnTo.current = safeReturnPath(fromParam);
+    setOpenContactId(target);
   }, [focusContactId, fromParam, calls]);
 
   // Close the detail sheet — and if this was the contact we deep-linked to from

@@ -37,6 +37,7 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { Sheet } from "@/components/ui/sheet";
 import { ExpandableText } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { nextDeepLinkTarget } from "@/lib/deep-link";
 import { haptic } from "@/lib/haptics";
 import type { CampaignMessage, MessageStatus } from "@/lib/types";
 import { templatesRepo } from "@/features/templates/lib/repository";
@@ -103,6 +104,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   const [reviewRemoveTarget, setReviewRemoveTarget] =
     React.useState<CampaignMessage | null>(null);
   const initialized = React.useRef(false);
+  // The `?contact=` deep-link target we last jumped to (keyed on value, not
+  // mount), so a changed target on a reused screen still re-focuses the queue.
+  const handledContact = React.useRef<string | null>(null);
 
   const templateName = React.useCallback(
     (id: string) => templates.find((t) => t.id === id)?.name ?? "Template",
@@ -114,15 +118,25 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     setReviewOpen(true);
   };
 
-  // On first load, jump to a deep-linked contact if one was requested, else
-  // resume exactly where the user left off.
+  // Jump to a deep-linked contact whenever the `?contact=` target changes (not
+  // just once per mount — Next.js can reuse this subtree across a soft
+  // navigation, which would otherwise pin the queue to the previous person),
+  // else on first load resume exactly where the user left off.
   React.useEffect(() => {
-    if (!initialized.current && campaign && messages) {
+    if (!campaign || !messages) return;
+    const target = nextDeepLinkTarget(handledContact.current, focusContactId);
+    if (target) {
+      const focused = messages.findIndex((m) => m.contactId === target);
+      if (focused !== -1) {
+        handledContact.current = target;
+        initialized.current = true;
+        setIndex(focused);
+        return;
+      }
+    }
+    if (!initialized.current) {
       initialized.current = true;
-      const focused = focusContactId
-        ? messages.findIndex((m) => m.contactId === focusContactId)
-        : -1;
-      setIndex(focused !== -1 ? focused : resumeIndex(messages, campaign.currentIndex));
+      setIndex(resumeIndex(messages, campaign.currentIndex));
     }
   }, [campaign, messages, focusContactId]);
 
