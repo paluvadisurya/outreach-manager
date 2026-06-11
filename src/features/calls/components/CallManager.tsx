@@ -114,13 +114,16 @@ export function CallManager() {
   const handledContact = React.useRef<string | null>(null);
   const returnTo = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (calls === undefined) return; // wait for the list underneath to be ready
+    // Purely parameter-driven: open whatever `?contact=` points at the moment it
+    // changes, without waiting on the list query underneath (the detail sheet
+    // loads its own data). This guarantees the freshly-linked person opens — and
+    // re-opens on a changed target even when the screen is reused.
     const target = nextDeepLinkTarget(handledContact.current, focusContactId);
     if (!target) return;
     handledContact.current = target;
     returnTo.current = safeReturnPath(fromParam);
     setOpenContactId(target);
-  }, [focusContactId, fromParam, calls]);
+  }, [focusContactId, fromParam]);
 
   // Close the detail sheet — and if this was the contact we deep-linked to from
   // a campaign, navigate back to that origin (consumed once).
