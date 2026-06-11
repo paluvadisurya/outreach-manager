@@ -336,9 +336,14 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
       await callsRepo.addContacts([cur.contactId], [campaignId]);
     }
     haptic("light");
-    // Carry the origin so closing the call view returns to this campaign.
+    // Pin the queue to this person so the position is coherent if we resume by
+    // index later, and carry the contact in the return origin so closing the
+    // call view brings the campaign back to THIS exact person (identity-stable),
+    // never whichever message the stored index happens to resolve to.
+    persistIndex(Math.min(index, messages.length - 1));
+    const back = `/campaigns/${campaignId}?contact=${encodeURIComponent(cur.contactId)}`;
     router.push(
-      `/call?contact=${encodeURIComponent(cur.contactId)}&from=${encodeURIComponent(`/campaigns/${campaignId}`)}`,
+      `/call?contact=${encodeURIComponent(cur.contactId)}&from=${encodeURIComponent(back)}`,
     );
   };
 
