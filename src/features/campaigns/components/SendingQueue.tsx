@@ -639,10 +639,12 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     setSearchStatus("all");
   };
 
-  // Swipe hint intensities + card transform. Drag LEFT (negative) = send
-  // message; drag RIGHT (positive) = skip.
-  const sendHint = Math.min(Math.max(-dragX, 0) / SWIPE_THRESHOLD, 1);
-  const skipHint = Math.min(Math.max(dragX, 0) / SWIPE_THRESHOLD, 1);
+  // Swipe hint intensities + card transform. Drag RIGHT (positive) = send
+  // message (WhatsApp); drag LEFT (negative) = skip. These must match the
+  // commit directions in `endSwipe` so the flood overlay shows the action the
+  // release will actually perform.
+  const sendHint = Math.min(Math.max(dragX, 0) / SWIPE_THRESHOLD, 1);
+  const skipHint = Math.min(Math.max(-dragX, 0) / SWIPE_THRESHOLD, 1);
   const cardStyle: React.CSSProperties = exit
     ? {
         transform: "translateX(-130%) rotate(-14deg)",
@@ -873,14 +875,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               </button>
             );
           })}
-          <button
-            type="button"
-            onClick={openCreateTemplate}
-            className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add
-          </button>
         </div>
 
         {/* Swipe arena (Req #9): the whole region below the chips is draggable —
@@ -1079,7 +1073,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
 
           <HapticButton
             variant="outline"
-            className="h-12 w-full"
+            className="h-14 w-full"
             onClick={() => mark("skipped")}
             aria-label="Skip"
           >
@@ -1115,7 +1109,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               aria-label="Reset this person"
             >
               <RotateCcw className="h-5 w-5" />
-              {current.status === "sent" ? "Sent · Reset" : "Done · Reset"}
+              Reset
             </HapticButton>
           ) : (
             <HapticButton
@@ -1318,7 +1312,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         open={gearOpen}
         onClose={() => setGearOpen(false)}
         title="Campaign templates"
-        description="Choose which templates show here, reorder them, and pick the default."
       >
         <div className="space-y-2">
           {/* Attached, in campaign order — reorder, star the default, detach. */}

@@ -117,27 +117,40 @@ export function CallManager() {
   const focusNonce = searchParams.get("t");
   const handledKey = React.useRef<string | null>(null);
   const returnTo = React.useRef<string | null>(null);
+  // The contact the pending `returnTo` belongs to. Tracked separately from the
+  // live `?contact=` param because we strip that param from the URL the instant
+  // the deep link is consumed (below), so it can't be read back at close time.
+  const returnForContact = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!focusContactId) return;
     const key = focusNonce ?? focusContactId;
     if (key === handledKey.current) return;
     handledKey.current = key;
     returnTo.current = safeReturnPath(fromParam);
+    returnForContact.current = returnTo.current ? focusContactId : null;
     // Open whatever `?contact=` points at right now, without waiting on the list
     // query underneath (the detail sheet loads its own data via live queries, so
-    // a freshly-added person is ready). Setting it unconditionally also clears
-    // any stale person left open in a reused subtree.
+    // a freshly-added person is ready).
     setOpenContactId(focusContactId);
-  }, [focusContactId, fromParam, focusNonce]);
+    // Consume the deep link: strip ?contact/from/t from the URL so it can't
+    // re-fire. Without this the params linger in history (and the PWA's restored
+    // URL / a reused subtree), so simply opening the Call tab later re-pops a
+    // stale contact's detail sheet "for no reason".
+    router.replace("/call", { scroll: false });
+  }, [focusContactId, fromParam, focusNonce, router]);
 
   // Close the detail sheet — and if this was the contact we deep-linked to from
   // a campaign, navigate back to that origin (consumed once).
   const closeDetail = React.useCallback(() => {
-    const dest = openContactId === focusContactId ? returnTo.current : null;
+    const dest =
+      openContactId && openContactId === returnForContact.current
+        ? returnTo.current
+        : null;
     returnTo.current = null;
+    returnForContact.current = null;
     setOpenContactId(null);
     if (dest) router.push(dest);
-  }, [openContactId, focusContactId, router]);
+  }, [openContactId, router]);
 
   // Campaign id → the campaign, and campaign id → its template ids, for filtering.
   const campaignMap = React.useMemo(() => {
