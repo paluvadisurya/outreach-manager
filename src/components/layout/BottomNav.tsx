@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   UsersRound,
-  LayoutTemplate,
   Send,
   Phone,
   CalendarDays,
@@ -21,9 +20,10 @@ interface Tab {
 }
 
 /** The top-level destinations. This is the entire application surface. */
+// Templates is intentionally absent — template create/edit now lives inside the
+// campaign flow (the chip-row gear + Add sheet) and the New Campaign flow.
 const TABS: Tab[] = [
   { href: "/people", label: "People", icon: UsersRound, match: ["/contacts", "/categories"] },
-  { href: "/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/campaigns", label: "Campaigns", icon: Send },
   { href: "/call", label: "Call", icon: Phone },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },

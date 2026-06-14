@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Check,
   SkipForward,
   RefreshCw,
@@ -18,6 +20,8 @@ import {
   Plus,
   Link2,
   Search,
+  Settings2,
+  CircleMinus,
   UserMinus,
   UserPlus,
   UserX,
@@ -96,7 +100,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   const [manageOpen, setManageOpen] = React.useState(false);
   const [renaming, setRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState("");
-  const [addTemplateOpen, setAddTemplateOpen] = React.useState(false);
+  // Gear sheet: choose which templates show in this campaign and their order.
+  const [gearOpen, setGearOpen] = React.useState(false);
+  // Create/edit a template in place (the Add chip + the gear's "Create" button).
   const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
   const [addPeopleOpen, setAddPeopleOpen] = React.useState(false);
   // In-campaign search (Req #1): a lightweight sheet to find and jump to anyone,
@@ -118,6 +124,23 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     tone: "sent" | "skip" | "remove";
   } | null>(null);
   const feedbackTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Which slice of the progress bar the user tapped to read out: the headline %
+  // shows sent% by default (green) and temporarily flips to skipped% (grey) when
+  // the grey slice is tapped, auto-reverting after a moment (Req #5).
+  const [barSel, setBarSel] = React.useState<"sent" | "skipped" | null>(null);
+  const barSelTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectBar = (which: "sent" | "skipped") => {
+    if (barSelTimer.current) clearTimeout(barSelTimer.current);
+    haptic("light");
+    setBarSel(which);
+    barSelTimer.current = setTimeout(() => setBarSel(null), 1800);
+  };
+  React.useEffect(
+    () => () => {
+      if (barSelTimer.current) clearTimeout(barSelTimer.current);
+    },
+    [],
+  );
   const flash = React.useCallback(
     (text: string, tone: "sent" | "skip" | "remove") => {
       if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
@@ -291,9 +314,45 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     await campaignsRepo.setMessageTemplate(campaignId, current.contactId, templateId);
   };
 
-  const attachTemplate = async (templateId: string) => {
-    await campaignsRepo.addTemplate(campaignId, templateId);
-    setAddTemplateOpen(false);
+  // --- Gear: manage which templates show in this campaign and their order. ---
+  const attachTemplate = (templateId: string) => {
+    haptic("light");
+    void campaignsRepo.addTemplate(campaignId, templateId);
+  };
+  const detachTemplate = (templateId: string) => {
+    haptic("light");
+    void campaignsRepo.removeTemplate(campaignId, templateId);
+  };
+  const makePrimary = (templateId: string) => {
+    haptic("light");
+    void campaignsRepo.setPrimaryTemplate(campaignId, templateId);
+  };
+  const moveTemplate = (templateId: string, dir: -1 | 1) => {
+    if (!campaign) return;
+    const order = [...campaign.templateIds];
+    const i = order.indexOf(templateId);
+    const j = i + dir;
+    if (i === -1 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j]!, order[i]!];
+    haptic("light");
+    void campaignsRepo.setTemplateOrder(campaignId, order);
+  };
+
+  // Open the create/edit-template sheet; remember the current template ids so a
+  // brand-new one can be auto-attached to this campaign when the live query
+  // brings it in.
+  const idsBeforeCreate = React.useRef<Set<string> | null>(null);
+  React.useEffect(() => {
+    if (idsBeforeCreate.current === null) return;
+    const fresh = templates.filter((t) => !idsBeforeCreate.current!.has(t.id));
+    if (fresh.length === 0) return;
+    idsBeforeCreate.current = null;
+    for (const t of fresh) void campaignsRepo.addTemplate(campaignId, t.id);
+  }, [templates, campaignId]);
+  const openCreateTemplate = () => {
+    idsBeforeCreate.current = new Set(templates.map((t) => t.id));
+    setGearOpen(false);
+    setCreateTemplateOpen(true);
   };
 
   // Reset just the current person back to Pending.
@@ -519,32 +578,33 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           ? "text-sm"
           : "text-xs";
 
-  // The current person's status drives a colour accent on the preview card so
-  // the sent/skipped/pending state reads at a glance (Req #2).
+  // The current person's status tints the preview card with a subtle background
+  // fill (no harsh accent line) plus a solid badge, so the sent/skipped/pending
+  // state reads without overwhelming the card (Req #2 / status visibility).
   const statusAccent =
     current.status === "sent"
-      ? { ring: "ring-primary/40", badge: "bg-primary/12 text-primary", label: "Sent" }
+      ? { fill: "bg-primary/[0.06]", badge: "bg-primary text-primary-foreground", label: "Sent" }
       : current.status === "skipped"
         ? {
-            ring: "ring-border",
-            badge: "bg-secondary text-muted-foreground",
+            fill: "bg-muted-foreground/[0.07]",
+            badge: "bg-muted-foreground text-white",
             label: "Skipped",
           }
         : current.status === "failed"
           ? {
-              ring: "ring-destructive/40",
-              badge: "bg-destructive/10 text-destructive",
+              fill: "bg-destructive/[0.06]",
+              badge: "bg-destructive text-white",
               label: "Failed",
             }
           : current.status === "needs_review"
             ? {
-                ring: "ring-amber-400/50",
-                badge: "bg-amber-100 text-amber-700",
+                fill: "bg-amber-400/[0.10]",
+                badge: "bg-amber-500 text-white",
                 label: "Needs review",
               }
             : {
-                ring: "ring-hairline",
-                badge: "bg-secondary text-muted-foreground",
+                fill: "bg-card",
+                badge: "bg-secondary text-foreground",
                 label: "Not sent yet",
               };
 
@@ -686,87 +746,142 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           </div>
         )}
 
-        {/* One consolidated progress line: sent, skipped, what's left, percent. */}
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          <span className="font-semibold text-primary">{progress.sent}</span> sent
-          {progress.skipped > 0 && (
-            <> · {progress.skipped} skipped</>
-          )}{" "}
-          · {progress.pending} left · {progress.percent}%
-        </p>
+        {/* Stats line: queue position, then the counts, with the headline % bold
+            on the right (Req #5/#7). The % reflects the bar selection: sent% in
+            green by default, skipped% in grey while the grey slice is tapped. */}
+        {(() => {
+          const skippedPct = Math.round(progress.skippedFraction * 100);
+          const showSkipped = barSel === "skipped";
+          return (
+            <>
+              <div className="mt-1.5 flex items-center gap-2.5 text-xs text-muted-foreground">
+                <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                  {index + 1}/{messages.length}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-center">
+                  <span className="font-semibold text-primary">
+                    {progress.sent}
+                  </span>{" "}
+                  sent
+                  <span className="px-1.5 text-muted-foreground/40">·</span>
+                  {progress.skipped} skipped
+                  <span className="px-1.5 text-muted-foreground/40">·</span>
+                  {progress.pending} left
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 text-sm font-bold tabular-nums transition-colors",
+                    showSkipped ? "text-muted-foreground" : "text-primary",
+                  )}
+                >
+                  {showSkipped ? skippedPct : progress.percent}%
+                </span>
+              </div>
 
-        {/* Segmented progress (Req #5): green = sent, grey = skipped, the rest is
-            the unfilled track of people still pending. */}
-        <div
-          className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-secondary shadow-[inset_0_1px_2px_rgba(16,24,40,0.06)]"
-          role="progressbar"
-          aria-valuenow={progress.percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Sent progress"
-        >
-          <div
-            className="h-full bg-primary bg-gradient-to-b from-white/25 to-transparent transition-all duration-500 ease-out"
-            style={{ width: `${progress.percent}%` }}
-          />
-          <div
-            className="h-full bg-muted-foreground/35 transition-all duration-500 ease-out"
-            style={{ width: `${Math.round(progress.skippedFraction * 100)}%` }}
-          />
-        </div>
+              {/* Segmented bar — green = sent, grey = skipped, rest = pending.
+                  Each coloured slice has a taller invisible hit-zone so it's
+                  tappable without changing the slim bar's look (Req #5). */}
+              <div className="relative mt-2">
+                <div
+                  className="flex h-2 w-full overflow-hidden rounded-full bg-secondary shadow-[inset_0_1px_2px_rgba(16,24,40,0.06)]"
+                  role="progressbar"
+                  aria-valuenow={progress.percent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Sent progress"
+                >
+                  {/* NOTE: plain class strings (no cn/twMerge) — merging
+                      `bg-primary` with `bg-gradient-to-b` makes twMerge drop the
+                      colour. Dimming is applied via inline opacity instead. */}
+                  <div
+                    className="h-full bg-primary bg-gradient-to-b from-white/25 to-transparent transition-all duration-500 ease-out"
+                    style={{
+                      width: `${progress.percent}%`,
+                      opacity: showSkipped ? 0.6 : 1,
+                    }}
+                  />
+                  <div
+                    className="h-full bg-muted-foreground/35 transition-all duration-500 ease-out"
+                    style={{
+                      width: `${skippedPct}%`,
+                      opacity: barSel === "sent" ? 0.5 : 1,
+                    }}
+                  />
+                </div>
+                {progress.percent > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => selectBar("sent")}
+                    aria-label="Show sent percentage"
+                    className="absolute -top-2.5 bottom-[-0.625rem] left-0"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                )}
+                {skippedPct > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => selectBar("skipped")}
+                    aria-label="Show skipped percentage"
+                    className="absolute -top-2.5 bottom-[-0.625rem]"
+                    style={{
+                      left: `${progress.percent}%`,
+                      width: `${skippedPct}%`,
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          );
+        })()}
       </header>
 
       {/* Scrollable body */}
       <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
-        {/* Template picker — heading removed (Req #7); only shown when the
-            campaign carries more than one template. Tap a chip to re-render THIS
-            person's message from that template. Kept OUT of the swipe area so its
-            own horizontal scroll isn't hijacked. */}
-        {campaign.templateIds.length > 1 && (
-          <div className="no-scrollbar -my-1 mb-1 flex gap-1.5 overflow-x-auto px-0.5 py-1">
-            {campaign.templateIds.map((tid) => {
-              const active = current.templateId === tid;
-              const isPrimary = campaign.primaryTemplateId === tid;
-              return (
-                <button
-                  key={tid}
-                  type="button"
-                  onClick={() => switchTemplate(tid)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
-                    active
-                      ? "bg-accent text-accent-foreground ring-1 ring-primary/30"
-                      : "bg-secondary text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {isPrimary && (
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-                  )}
-                  <span className="max-w-[10rem] truncate">{templateName(tid)}</span>
-                  {active && <Check className="h-3.5 w-3.5 text-primary" />}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setAddTemplateOpen(true)}
-              className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </button>
-          </div>
-        )}
-        {campaign.templateIds.length <= 1 && (
+        {/* Template row: a sticky gear (manage which templates show + order)
+            pinned left while the chips scroll horizontally, then a chip per
+            attached template (tap to re-render THIS person from it), then Add.
+            Kept OUT of the swipe area so its own scroll isn't hijacked. */}
+        <div className="no-scrollbar -my-1 mb-1 flex items-center gap-1.5 overflow-x-auto py-1 pl-0.5 pr-0.5">
           <button
             type="button"
-            onClick={() => setAddTemplateOpen(true)}
-            className="flex items-center gap-1 text-sm font-semibold text-primary"
+            onClick={() => setGearOpen(true)}
+            aria-label="Manage campaign templates"
+            className="sticky left-0 z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-foreground shadow-soft ring-1 ring-hairline transition-colors hover:bg-secondary active:scale-95"
           >
-            <Plus className="h-4 w-4" />
-            Add another template
+            <Settings2 className="h-4 w-4" />
           </button>
-        )}
+          {campaign.templateIds.map((tid) => {
+            const active = current.templateId === tid;
+            const isPrimary = campaign.primaryTemplateId === tid;
+            return (
+              <button
+                key={tid}
+                type="button"
+                onClick={() => switchTemplate(tid)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
+                  active
+                    ? "bg-accent text-accent-foreground ring-1 ring-primary/30"
+                    : "bg-secondary text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {isPrimary && (
+                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                )}
+                <span className="max-w-[10rem] truncate">{templateName(tid)}</span>
+                {active && <Check className="h-3.5 w-3.5 text-primary" />}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={openCreateTemplate}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </button>
+        </div>
 
         {/* Swipe arena (Req #9): the whole region below the chips is draggable —
             drag right for WhatsApp, left to Skip — with live directional hints,
@@ -782,34 +897,15 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           }}
           style={{ touchAction: "pan-y" }}
         >
-          {/* Directional hints revealed as the card slides off them: drag right to
-              send (left side lights up green), drag left to skip (right side). */}
-          <div className="pointer-events-none absolute inset-x-0 top-2 flex items-center justify-between px-2">
-            <span
-              className="flex items-center gap-1.5 rounded-full bg-[#25D366]/15 px-3 py-1.5 text-sm font-bold text-[#128C42]"
-              style={{ opacity: sendHint, transform: `scale(${0.85 + sendHint * 0.15})` }}
-            >
-              <WhatsAppIcon className="h-5 w-5" />
-              Send
-            </span>
-            <span
-              className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-bold text-muted-foreground"
-              style={{ opacity: skipHint, transform: `scale(${0.85 + skipHint * 0.15})` }}
-            >
-              Skip
-              <SkipForward className="h-5 w-5" />
-            </span>
-          </div>
-
           <div
             style={cardStyle}
             className={cn(
-              "rounded-3xl bg-card p-4 shadow-card ring-1",
-              statusAccent.ring,
+              "relative overflow-hidden rounded-3xl p-4 shadow-card ring-1 ring-hairline",
+              statusAccent.fill,
             )}
           >
             {/* Name + number on the left, status badge on the right of the same
-                row (Req #4). */}
+                row. */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-lg font-bold tracking-tight text-foreground">
@@ -821,7 +917,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               </div>
               <span
                 className={cn(
-                  "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
+                  "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold",
                   statusAccent.badge,
                 )}
               >
@@ -841,6 +937,32 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                 />
               </div>
             </div>
+
+            {/* Bold swipe-action flood: as you drag, the whole card fills with the
+                action colour + a big label, so it's unmistakable which way does
+                what (drag right = Send, left = Skip). */}
+            {(sendHint > 0 || skipHint > 0) && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-white"
+                style={{
+                  opacity: Math.min(Math.max(sendHint, skipHint), 1),
+                  backgroundColor:
+                    sendHint >= skipHint
+                      ? "rgba(37,211,102,0.94)"
+                      : "rgba(100,116,139,0.94)",
+                }}
+              >
+                {sendHint >= skipHint ? (
+                  <WhatsAppIcon className="h-12 w-12" />
+                ) : (
+                  <SkipForward className="h-12 w-12" />
+                )}
+                <span className="text-xl font-extrabold uppercase tracking-wide">
+                  {sendHint >= skipHint ? "Send message" : "Skip"}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* A subtle hint so swiping is discoverable on first use. */}
@@ -861,32 +983,33 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           >
             <span
               className={cn(
-                "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold text-white shadow-float",
+                "flex max-w-[88vw] items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold text-white shadow-float",
                 feedback.tone === "sent" && "bg-primary",
                 feedback.tone === "skip" && "bg-foreground/80",
                 feedback.tone === "remove" && "bg-destructive",
               )}
             >
-              {feedback.tone === "sent" && <Check className="h-4 w-4" />}
-              {feedback.tone === "skip" && <SkipForward className="h-4 w-4" />}
-              {feedback.tone === "remove" && <Trash2 className="h-4 w-4" />}
-              {feedback.text}
+              {feedback.tone === "sent" && <Check className="h-4 w-4 shrink-0" />}
+              {feedback.tone === "skip" && (
+                <SkipForward className="h-4 w-4 shrink-0" />
+              )}
+              {feedback.tone === "remove" && (
+                <Trash2 className="h-4 w-4 shrink-0" />
+              )}
+              <span className="truncate">{feedback.text}</span>
             </span>
           </div>
         )}
 
-        {/* Queue position, then one compact row of icon-only controls:
-            Prev · Delete · Call view · Skip · Next (Req #1/#2). */}
-        <p className="mb-1.5 text-center text-xs font-semibold tabular-nums text-muted-foreground">
-          {index + 1} / {messages.length}
-        </p>
+        {/* One compact row of icon-only controls: Prev · Delete · Call view ·
+            Skip · Next (the position now lives in the header progress line). */}
         <div className="mb-2.5 grid grid-cols-5 gap-2">
           <button
             type="button"
             onClick={() => goTo(index - 1)}
             disabled={index === 0}
             aria-label="Previous person"
-            className="flex h-12 items-center justify-center rounded-2xl bg-secondary text-foreground transition-colors hover:bg-secondary/70 active:scale-95 disabled:opacity-40"
+            className="flex h-14 items-center justify-center rounded-2xl bg-secondary text-foreground transition-colors hover:bg-secondary/70 active:scale-95 disabled:opacity-40"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -895,7 +1018,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             <HapticButton
               variant="outline"
               haptic="light"
-              className="h-12 w-full"
+              className="h-14 w-full"
               onClick={() => setDeleteMenuOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={deleteMenuOpen}
@@ -947,7 +1070,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           <HapticButton
             variant="outline"
             haptic="light"
-            className="h-12 w-full border-[#34C759]/45 hover:bg-[#34C759]/10"
+            className="h-14 w-full border-[#34C759]/45 hover:bg-[#34C759]/10"
             onClick={openCallView}
             aria-label={`Open call view for ${current.contactName}`}
           >
@@ -968,7 +1091,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             onClick={() => goTo(index + 1)}
             disabled={index >= messages.length - 1}
             aria-label="Next person"
-            className="flex h-12 items-center justify-center rounded-2xl bg-secondary text-foreground transition-colors hover:bg-secondary/70 active:scale-95 disabled:opacity-40"
+            className="flex h-14 items-center justify-center rounded-2xl bg-secondary text-foreground transition-colors hover:bg-secondary/70 active:scale-95 disabled:opacity-40"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -999,10 +1122,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
               className="h-14 w-full text-base"
               haptic="success"
               onClick={() => mark("sent")}
-              aria-label="Mark sent"
+              aria-label="Send"
             >
-              <Check className="h-6 w-6" />
-              Mark Sent
+              Send
             </HapticButton>
           )}
         </div>
@@ -1190,49 +1312,116 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         </div>
       </Sheet>
 
-      {/* Add a template to the campaign — always offers a way forward: pick an
-          existing one, or create a brand-new template right here (Req #5). */}
+      {/* Gear: pick which templates show in THIS campaign, set their order and
+          the default (primary), or create a new one. */}
       <Sheet
-        open={addTemplateOpen}
-        onClose={() => setAddTemplateOpen(false)}
-        title="Add a template"
+        open={gearOpen}
+        onClose={() => setGearOpen(false)}
+        title="Campaign templates"
+        description="Choose which templates show here, reorder them, and pick the default."
       >
-        <ul className="space-y-2">
-          {attachableTemplates.map((t) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => attachTemplate(t.id)}
-                className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
+        <div className="space-y-2">
+          {/* Attached, in campaign order — reorder, star the default, detach. */}
+          {campaign.templateIds.map((tid, i) => {
+            const isPrimary = campaign.primaryTemplateId === tid;
+            const last = campaign.templateIds.length - 1;
+            return (
+              <div
+                key={tid}
+                className="flex items-center gap-1.5 rounded-2xl border border-hairline bg-card p-2 pl-3"
               >
-                <span className="truncate font-semibold text-foreground">
-                  {t.name}
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => moveTemplate(tid, -1)}
+                    disabled={i === 0}
+                    aria-label="Move up"
+                    className="flex h-5 w-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveTemplate(tid, 1)}
+                    disabled={i === last}
+                    aria-label="Move down"
+                    className="flex h-5 w-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary disabled:opacity-30"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
+                <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
+                  {templateName(tid)}
                 </span>
-                <Plus className="h-4 w-4 shrink-0 text-primary" />
-              </button>
-            </li>
-          ))}
-          <li>
-            <button
-              type="button"
-              onClick={() => setCreateTemplateOpen(true)}
-              className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-primary/30 bg-accent p-3 text-left transition-colors hover:bg-accent/70"
-            >
-              <span className="truncate font-semibold text-foreground">
-                Create new template
-              </span>
-              <FilePlus2 className="h-4 w-4 shrink-0 text-primary" />
-            </button>
-          </li>
-        </ul>
+                <button
+                  type="button"
+                  onClick={() => makePrimary(tid)}
+                  aria-label={isPrimary ? "Default template" : "Set as default"}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl hover:bg-secondary"
+                >
+                  <Star
+                    className={cn(
+                      "h-4 w-4",
+                      isPrimary
+                        ? "fill-amber-400 text-amber-500"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => detachTemplate(tid)}
+                  disabled={campaign.templateIds.length <= 1}
+                  aria-label={`Remove ${templateName(tid)} from this campaign`}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                >
+                  <CircleMinus className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Other templates you can add to this campaign. */}
+          {attachableTemplates.length > 0 && (
+            <>
+              <p className="px-1 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Add to this campaign
+              </p>
+              {attachableTemplates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => attachTemplate(t.id)}
+                  className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
+                >
+                  <span className="truncate font-semibold text-foreground">
+                    {t.name}
+                  </span>
+                  <Plus className="h-4 w-4 shrink-0 text-primary" />
+                </button>
+              ))}
+            </>
+          )}
+
+          {/* Create a new template (the gear's Add — second entry point). */}
+          <button
+            type="button"
+            onClick={openCreateTemplate}
+            className="mt-1 flex min-h-touch w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-accent/40 p-3 text-sm font-semibold text-primary transition-colors hover:bg-accent"
+          >
+            <FilePlus2 className="h-4 w-4" />
+            Create a new template
+          </button>
+        </div>
       </Sheet>
 
-      {/* Create-template flow, embedded so the user never hits a dead end (Req
-          #5). On save the live templates query refreshes and the new one appears
-          in the list above, ready to attach. */}
+      {/* Create/edit a template in place — selectable so you can start fresh or
+          load an existing one and modify it. A brand-new one auto-attaches to
+          this campaign. */}
       <TemplateEditor
         open={createTemplateOpen}
         template={null}
+        selectable
         onClose={() => setCreateTemplateOpen(false)}
       />
 

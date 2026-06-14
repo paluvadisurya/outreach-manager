@@ -290,6 +290,49 @@ export const campaignsRepo = {
   },
 
   /**
+   * Detach a template from a campaign (the gear's "which templates show" control).
+   * Never removes the last template, and if the primary is removed the next
+   * remaining one is promoted. Existing messages keep their frozen text.
+   */
+  async removeTemplate(campaignId: string, templateId: string): Promise<void> {
+    const campaign = await this.get(campaignId);
+    if (!campaign || !campaign.templateIds.includes(templateId)) return;
+    const next = campaign.templateIds.filter((id) => id !== templateId);
+    if (next.length === 0) return; // keep at least one template attached
+    const primaryTemplateId =
+      campaign.primaryTemplateId === templateId
+        ? next[0]!
+        : campaign.primaryTemplateId;
+    await getDB().campaigns.update(campaignId, {
+      templateIds: next,
+      primaryTemplateId,
+      updatedAt: Date.now(),
+    });
+  },
+
+  /**
+   * Reorder the campaign's attached templates (the gear's drag/up-down ordering).
+   * Only ids already attached are honoured; any missing ones are appended so the
+   * set is never silently dropped.
+   */
+  async setTemplateOrder(
+    campaignId: string,
+    orderedIds: string[],
+  ): Promise<void> {
+    const campaign = await this.get(campaignId);
+    if (!campaign) return;
+    const attached = new Set(campaign.templateIds);
+    const next = orderedIds.filter((id) => attached.has(id));
+    for (const id of campaign.templateIds) {
+      if (!next.includes(id)) next.push(id);
+    }
+    await getDB().campaigns.update(campaignId, {
+      templateIds: next,
+      updatedAt: Date.now(),
+    });
+  },
+
+  /**
    * Reconcile a campaign's contact set with its current source (Req 5/6). Adds
    * messages for contacts now in the source but missing from the campaign, removes
    * messages for contacts no longer in the source, and refreshes the total. Frozen

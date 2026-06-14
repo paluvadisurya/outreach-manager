@@ -168,3 +168,51 @@ describe("campaignsRepo.removeMessage exclusion on refresh", () => {
     expect(ids(await campaignsRepo.messagesFor(campaign.id))).toEqual([drop]);
   });
 });
+
+describe("campaignsRepo template management (gear)", () => {
+  beforeEach(freshDb);
+
+  async function campaignWithThreeTemplates() {
+    const a = "+919800000001";
+    await seedContact(a, "Asha One");
+    const t1 = await templatesRepo.create("One", "Hi 1");
+    const t2 = await templatesRepo.create("Two", "Hi 2");
+    const t3 = await templatesRepo.create("Three", "Hi 3");
+    const campaign = await campaignsRepo.create({
+      name: "Launch",
+      templateId: t1.id,
+      contactIds: [a],
+    });
+    await campaignsRepo.addTemplate(campaign.id, t2.id);
+    await campaignsRepo.addTemplate(campaign.id, t3.id);
+    return { campaignId: campaign.id, t1, t2, t3 };
+  }
+
+  it("setTemplateOrder reorders the attached templates", async () => {
+    const { campaignId, t1, t2, t3 } = await campaignWithThreeTemplates();
+    await campaignsRepo.setTemplateOrder(campaignId, [t3.id, t1.id, t2.id]);
+    expect((await campaignsRepo.get(campaignId))?.templateIds).toEqual([
+      t3.id,
+      t1.id,
+      t2.id,
+    ]);
+  });
+
+  it("removeTemplate detaches and promotes a new primary when needed", async () => {
+    const { campaignId, t1, t2, t3 } = await campaignWithThreeTemplates();
+    // t1 is primary; removing it promotes the next remaining one.
+    await campaignsRepo.removeTemplate(campaignId, t1.id);
+    const after = await campaignsRepo.get(campaignId);
+    expect(after?.templateIds).toEqual([t2.id, t3.id]);
+    expect(after?.primaryTemplateId).toBe(t2.id);
+  });
+
+  it("removeTemplate never removes the last template", async () => {
+    const { campaignId, t1, t2, t3 } = await campaignWithThreeTemplates();
+    await campaignsRepo.removeTemplate(campaignId, t2.id);
+    await campaignsRepo.removeTemplate(campaignId, t3.id);
+    // Only t1 remains; a further removal is a no-op.
+    await campaignsRepo.removeTemplate(campaignId, t1.id);
+    expect((await campaignsRepo.get(campaignId))?.templateIds).toEqual([t1.id]);
+  });
+});

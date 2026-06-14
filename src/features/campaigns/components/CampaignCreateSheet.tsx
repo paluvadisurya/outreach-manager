@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, CheckCheck, Star } from "lucide-react";
+import { Check, CheckCheck, Star, FilePlus2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { contactsRepo } from "@/features/contacts/lib/repository";
 import { personalizeContact } from "@/features/contacts/lib/name";
 import { useSettings } from "@/features/settings/hooks/useSettings";
 import { renderTemplate, tidyMessage } from "@/features/templates/lib/render";
+import { TemplateEditor } from "@/features/templates/components/TemplateEditor";
 import { campaignsRepo } from "../lib/repository";
 
 interface CampaignCreateSheetProps {
@@ -44,6 +45,26 @@ export function CampaignCreateSheet({
   const [templateIds, setTemplateIds] = React.useState<string[]>([]);
   const [primaryTemplateId, setPrimaryTemplateId] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  // Create a template without leaving the New Campaign flow — the only way in
+  // now that the Templates tab is gone (notably for the very first campaign,
+  // when there are no templates yet).
+  const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
+  // Template ids known just before opening the create sheet, so when the live
+  // query brings in a freshly-created one we can auto-select (and make primary).
+  const idsBeforeCreate = React.useRef<Set<string> | null>(null);
+  React.useEffect(() => {
+    if (idsBeforeCreate.current === null) return;
+    const fresh = templates.filter((t) => !idsBeforeCreate.current!.has(t.id));
+    if (fresh.length === 0) return;
+    idsBeforeCreate.current = null;
+    const newIds = fresh.map((t) => t.id);
+    setTemplateIds((prev) => [...new Set([...prev, ...newIds])]);
+    setPrimaryTemplateId((p) => p || newIds[0]!);
+  }, [templates]);
+  const openCreateTemplate = () => {
+    idsBeforeCreate.current = new Set(templates.map((t) => t.id));
+    setCreateTemplateOpen(true);
+  };
 
   React.useEffect(() => {
     if (open) {
@@ -147,6 +168,7 @@ export function CampaignCreateSheet({
   }
 
   return (
+    <>
     <Sheet
       open={open}
       onClose={onClose}
@@ -221,7 +243,7 @@ export function CampaignCreateSheet({
           <div className="space-y-2">
             {templates.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                No templates yet. Create one from the Templates tab.
+                No templates yet — create your first one to get started.
               </p>
             )}
             {templates.map((t) => {
@@ -270,6 +292,15 @@ export function CampaignCreateSheet({
                 </div>
               );
             })}
+            {/* Create a template inline — works even with zero templates. */}
+            <button
+              type="button"
+              onClick={openCreateTemplate}
+              className="flex min-h-touch w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-accent/40 px-3 text-sm font-semibold text-primary transition-colors hover:bg-accent"
+            >
+              <FilePlus2 className="h-4 w-4" />
+              Create a new template
+            </button>
           </div>
           {templateIds.length > 1 && (
             <p className="text-xs text-muted-foreground">
@@ -288,6 +319,17 @@ export function CampaignCreateSheet({
         )}
       </div>
     </Sheet>
+
+    {/* Inline template create/edit — stacks above the campaign sheet. On save
+        the live templates query refreshes and an effect auto-selects any
+        brand-new template so the user can keep building the campaign. */}
+    <TemplateEditor
+      open={createTemplateOpen}
+      template={null}
+      selectable
+      onClose={() => setCreateTemplateOpen(false)}
+    />
+    </>
   );
 }
 
