@@ -11,6 +11,7 @@ import {
   X,
   CalendarPlus,
   CalendarClock,
+  CalendarDays,
   Trash2,
   MessageCircle,
   Megaphone,
@@ -158,6 +159,9 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
   const [remarks, setRemarks] = React.useState("");
   // Index of the call-log row currently being corrected (inline outcome picker).
   const [editingLog, setEditingLog] = React.useState<number | null>(null);
+  // The previous-calls log is collapsed by default — its high-level stat stays
+  // visible on the header, the detail unfolds on demand (Req #8).
+  const [logOpen, setLogOpen] = React.useState(false);
   // The header trash button opens a small menu offering the two delete kinds
   // (drop from call list vs. remove the contact entirely).
   const [deleteMenuOpen, setDeleteMenuOpen] = React.useState(false);
@@ -705,12 +709,27 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
 
           {/* Schedule next call */}
           <section className="space-y-2 rounded-2xl border border-hairline bg-card p-3 shadow-soft">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-              <CalendarClock className="h-4 w-4 text-primary" />
-              Next call
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <CalendarClock className="h-4 w-4 text-primary" />
+                Next call
+              </h3>
+              {/* Jump to the full Calendar to see this person in context (Req #8). */}
+              <button
+                type="button"
+                onClick={() => {
+                  haptic("light");
+                  onClose();
+                  router.push("/calendar");
+                }}
+                className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/70 active:scale-95"
+              >
+                <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                Calendar
+              </button>
+            </div>
 
-            {entry.nextCallAt && (
+            {entry.nextCallAt ? (
               <div className="flex items-center justify-between gap-2 rounded-xl bg-accent px-3 py-2 text-sm text-accent-foreground">
                 <span className="min-w-0">
                   <span className="block font-medium">
@@ -731,6 +750,10 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+            ) : (
+              <p className="rounded-xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
+                No upcoming call scheduled.
+              </p>
             )}
 
             <div className="flex gap-2">
@@ -802,23 +825,37 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
             ref={callLogRef}
             className="scroll-mt-2 space-y-2 rounded-2xl border border-hairline bg-card p-3 shadow-soft"
           >
-            <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => entry.history.length > 0 && setLogOpen((o) => !o)}
+              aria-expanded={logOpen}
+              disabled={entry.history.length === 0}
+              className="flex w-full items-center justify-between gap-2 text-left disabled:cursor-default"
+            >
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                 <History className="h-4 w-4 text-primary" />
-                Call log
+                Past calls
               </h3>
-              {entry.attempts > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  {entry.attempts} attempt{entry.attempts === 1 ? "" : "s"}
-                </span>
-              )}
-            </div>
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                {entry.history.length > 0
+                  ? `${entry.history.length} logged · ${entry.attempts} attempt${entry.attempts === 1 ? "" : "s"}`
+                  : "None yet"}
+                {entry.history.length > 0 && (
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      logOpen && "rotate-180",
+                    )}
+                  />
+                )}
+              </span>
+            </button>
 
             {entry.history.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No calls logged yet. Use the buttons below after you call.
               </p>
-            ) : (
+            ) : logOpen ? (
               <ul className="space-y-1.5">
                 {entry.history
                   .map((h, index) => ({ ...h, index }))
@@ -907,7 +944,7 @@ export function CallDetailSheet({ contactId, onClose }: CallDetailSheetProps) {
                     );
                   })}
               </ul>
-            )}
+            ) : null}
           </section>
         </div>
       )}

@@ -9,10 +9,15 @@ export interface CampaignProgress {
   needsReview: number;
   /** sent + skipped + failed — messages the user has acted on and finished. */
   processed: number;
-  /** Fraction in [0, 1] of messages processed. */
+  /**
+   * Fraction in [0, 1] of REAL progress — messages actually sent. Skipped people
+   * deliberately don't count, so skipping everyone never reads as 100% done.
+   */
   fraction: number;
-  /** Whole-number percentage of messages processed. */
+  /** Whole-number percentage actually sent. */
   percent: number;
+  /** Fraction in [0, 1] that was skipped (the grey segment of the bar). */
+  skippedFraction: number;
   /** True once no message remains pending or needs review. */
   complete: boolean;
 }
@@ -30,7 +35,10 @@ export function computeProgress(messages: CampaignMessage[]): CampaignProgress {
 
   const total = messages.length;
   const processed = counts.sent + counts.skipped + counts.failed;
-  const fraction = total === 0 ? 0 : processed / total;
+  // Progress is measured by messages actually SENT — skipped people are handled
+  // but aren't "progress", so an all-skipped campaign reads 0%, not 100%.
+  const fraction = total === 0 ? 0 : counts.sent / total;
+  const skippedFraction = total === 0 ? 0 : counts.skipped / total;
 
   return {
     total,
@@ -42,6 +50,7 @@ export function computeProgress(messages: CampaignMessage[]): CampaignProgress {
     processed,
     fraction,
     percent: Math.round(fraction * 100),
+    skippedFraction,
     complete: total > 0 && counts.pending === 0 && counts.needs_review === 0,
   };
 }

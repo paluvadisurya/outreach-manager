@@ -112,3 +112,59 @@ describe("campaignsRepo.addContacts", () => {
     );
   });
 });
+
+describe("campaignsRepo.removeMessage exclusion on refresh", () => {
+  beforeEach(freshDb);
+
+  it("a person removed from the campaign does NOT return on refresh", async () => {
+    const keep = "+919800000001";
+    const drop = "+919800000002";
+    await seedContact(keep, "Keep Me");
+    await seedContact(drop, "Drop Me");
+    const cat = await categoriesRepo.create("Buyers");
+    await contactsRepo.addToCategory([keep, drop], cat.id);
+    const template = await templatesRepo.create("Intro", "Hi");
+    const campaign = await campaignsRepo.create({
+      name: "Launch",
+      templateId: template.id,
+      categoryIds: [cat.id],
+    });
+    expect(ids(await campaignsRepo.messagesFor(campaign.id))).toEqual(
+      [keep, drop].sort(),
+    );
+
+    await campaignsRepo.removeMessage(campaign.id, drop);
+    const { added } = await campaignsRepo.refreshContacts(campaign.id);
+
+    // The dropped person stays out even though they're still in the category.
+    expect(added).toBe(0);
+    expect(ids(await campaignsRepo.messagesFor(campaign.id))).toEqual([keep]);
+    expect((await campaignsRepo.get(campaign.id))?.removedContactIds).toContain(
+      drop,
+    );
+  });
+
+  it("manually re-adding a removed person clears the exclusion", async () => {
+    const drop = "+919800000002";
+    await seedContact(drop, "Drop Me");
+    const cat = await categoriesRepo.create("Buyers");
+    await contactsRepo.addToCategory([drop], cat.id);
+    const template = await templatesRepo.create("Intro", "Hi");
+    const campaign = await campaignsRepo.create({
+      name: "Launch",
+      templateId: template.id,
+      categoryIds: [cat.id],
+    });
+
+    await campaignsRepo.removeMessage(campaign.id, drop);
+    await campaignsRepo.addContacts(campaign.id, [drop]);
+
+    expect(ids(await campaignsRepo.messagesFor(campaign.id))).toEqual([drop]);
+    expect(
+      (await campaignsRepo.get(campaign.id))?.removedContactIds ?? [],
+    ).not.toContain(drop);
+    // And a later refresh keeps them (no longer excluded).
+    await campaignsRepo.refreshContacts(campaign.id);
+    expect(ids(await campaignsRepo.messagesFor(campaign.id))).toEqual([drop]);
+  });
+});

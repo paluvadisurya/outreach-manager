@@ -78,6 +78,13 @@ export interface Campaign {
    * can be reconciled later via `refreshContacts`. Empty for category campaigns.
    */
   contactIds: string[];
+  /**
+   * Contacts deliberately removed from THIS campaign's queue. They're skipped on
+   * every `refreshContacts` so a removed person never re-appears just because
+   * they're still in the source category. Re-adding them manually clears the
+   * exclusion. (Distinct from a global soft-remove / blocklist.)
+   */
+  removedContactIds?: string[];
   /** Human label for the contact source, shown in the UI. */
   sourceLabel: string;
   /** Every template attached to the campaign. */

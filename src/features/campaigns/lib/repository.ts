@@ -178,6 +178,7 @@ export const campaignsRepo = {
       name: input.name.trim(),
       categoryIds,
       contactIds,
+      removedContactIds: [],
       sourceLabel: buildSourceLabel(categoryNames, contacts.length),
       templateIds,
       primaryTemplateId,
@@ -311,10 +312,14 @@ export const campaignsRepo = {
     const fromContactIds = (
       await Promise.all(campaign.contactIds.map((id) => contactsRepo.get(id)))
     ).filter((c): c is Contact => c != null && !c.removed);
+    // People explicitly removed from THIS campaign stay out, even though they're
+    // still in the source category (Req: a removed person mustn't re-appear on
+    // refresh).
+    const excluded = new Set(campaign.removedContactIds ?? []);
     const seen = new Set<string>();
     const desired: Contact[] = [];
     for (const c of [...fromCategories, ...fromContactIds]) {
-      if (seen.has(c.id)) continue;
+      if (seen.has(c.id) || excluded.has(c.id)) continue;
       seen.add(c.id);
       desired.push(c);
     }
@@ -390,6 +395,11 @@ export const campaignsRepo = {
     const nextContactIds = [
       ...new Set([...campaign.contactIds, ...valid.map((c) => c.id)]),
     ];
+    // Manually re-adding someone undoes a prior "remove from campaign".
+    const validIds = new Set(valid.map((c) => c.id));
+    const nextRemovedContactIds = (campaign.removedContactIds ?? []).filter(
+      (id) => !validIds.has(id),
+    );
 
     const settings = await settingsRepo.get();
     const primary = await templatesRepo.get(campaign.primaryTemplateId);
@@ -413,6 +423,7 @@ export const campaignsRepo = {
       if (newMessages.length) await db.campaignMessages.bulkAdd(newMessages);
       await db.campaigns.update(campaignId, {
         contactIds: nextContactIds,
+        removedContactIds: nextRemovedContactIds,
         total: existing.length + newMessages.length,
         updatedAt: now,
       });
@@ -424,6 +435,7 @@ export const campaignsRepo = {
   async removeMessage(campaignId: string, contactId: string): Promise<void> {
     const db = getDB();
     await db.transaction("rw", db.campaigns, db.campaignMessages, async () => {
+      const campaign = await db.campaigns.get(campaignId);
       const messages = await this.messagesFor(campaignId);
       const remaining = messages.filter((m) => m.contactId !== contactId);
       if (remaining.length === messages.length) return;
@@ -433,8 +445,18 @@ export const campaignsRepo = {
       await db.campaignMessages.bulkPut(
         remaining.map((m, i) => ({ ...m, order: i, updatedAt: now })),
       );
+      // Record the exclusion so a later refresh won't pull them back in, and
+      // drop them from the explicit audience if they were a manual add.
+      const removedContactIds = [
+        ...new Set([...(campaign?.removedContactIds ?? []), contactId]),
+      ];
+      const contactIds = (campaign?.contactIds ?? []).filter(
+        (id) => id !== contactId,
+      );
       await db.campaigns.update(campaignId, {
         total: remaining.length,
+        removedContactIds,
+        contactIds,
         updatedAt: now,
       });
     });

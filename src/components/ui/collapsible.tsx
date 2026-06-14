@@ -59,6 +59,12 @@ interface ExpandableTextProps {
   lines?: number;
   /** Classes applied to the text element (font, colors, whitespace handling). */
   className?: string;
+  /**
+   * Extra classes applied to the text element ONLY while expanded — e.g. a
+   * `max-h-…` + `overflow-y-auto` so a very long message scrolls within itself
+   * instead of pushing the surrounding layout.
+   */
+  expandedClassName?: string;
   /** Classes for the show-more/less toggle. */
   toggleClassName?: string;
   defaultExpanded?: boolean;
@@ -76,6 +82,7 @@ export function ExpandableText({
   text,
   lines = 6,
   className,
+  expandedClassName,
   toggleClassName,
   defaultExpanded = false,
   moreLabel = "Show full message",
@@ -103,7 +110,15 @@ export function ExpandableText({
 
   return (
     <div>
-      <p ref={ref} className={cn("whitespace-pre-wrap", className)} style={clampStyle}>
+      <p
+        ref={ref}
+        className={cn(
+          "whitespace-pre-wrap",
+          className,
+          expanded && expandedClassName,
+        )}
+        style={clampStyle}
+      >
         {text}
       </p>
       {(overflowing || expanded) && (
