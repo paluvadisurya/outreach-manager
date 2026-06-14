@@ -7,13 +7,8 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  MessageCircle,
-  Phone,
-  PhoneForwarded,
   Check,
   SkipForward,
-  AlertTriangle,
-  Eye,
   RefreshCw,
   MoreVertical,
   Pencil,
@@ -22,19 +17,18 @@ import {
   Star,
   Plus,
   Link2,
+  Search,
   UserMinus,
   UserPlus,
   UserX,
-  FolderMinus,
   Users,
-  CircleMinus,
-  Loader2,
+  FilePlus2,
+  PhoneForwarded,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HapticButton } from "@/components/ui/haptic-button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { Sheet } from "@/components/ui/sheet";
 import { ExpandableText } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -42,16 +36,19 @@ import { nextDeepLinkTarget } from "@/lib/deep-link";
 import { haptic } from "@/lib/haptics";
 import type { CampaignMessage, MessageStatus } from "@/lib/types";
 import { templatesRepo } from "@/features/templates/lib/repository";
-import { categoriesRepo } from "@/features/categories/lib/repository";
 import { contactsRepo } from "@/features/contacts/lib/repository";
 import { callsRepo } from "@/features/calls/lib/repository";
 import { eventsRepo } from "@/features/analytics/lib/repository";
 import { useSettings } from "@/features/settings/hooks/useSettings";
+import { TemplateEditor } from "@/features/templates/components/TemplateEditor";
 import { campaignsRepo } from "../lib/repository";
 import { computeProgress, resumeIndex } from "../lib/progress";
 import { buildWaLink, openWhatsApp } from "../lib/whatsapp";
 import { AddPeopleToCampaignSheet } from "./AddPeopleToCampaignSheet";
 
+// Display metadata kept for EVERY status so legacy messages (needs_review /
+// failed from older app versions) still render correctly even though the app no
+// longer creates those states. Active outreach now only produces sent/skipped.
 const STATUS_META: Record<MessageStatus, { label: string; variant: "success" | "secondary" | "destructive" | "default" }> = {
   pending: { label: "Pending", variant: "secondary" },
   sent: { label: "Sent", variant: "success" },
@@ -60,11 +57,30 @@ const STATUS_META: Record<MessageStatus, { label: string; variant: "success" | "
   needs_review: { label: "Needs review", variant: "default" },
 };
 
+// How far (px) the card must travel before a swipe commits to its action.
+const SWIPE_THRESHOLD = 96;
+
+// The WhatsApp glyph (Simple Icons, CC0) so the button carries the real brand
+// mark instead of a generic chat bubble (Req #7). `currentColor` by default; pass
+// a className to tint it (the brand green is #25D366).
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+    </svg>
+  );
+}
+
 export function SendingQueue({ campaignId }: { campaignId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Deep-link target: jump the queue straight to this person on load (Req #4 —
-  // the round-trip back from the Call section's "Open in campaign").
+  // Deep-link target: jump the queue straight to this person on load (the
+  // round-trip back from the Call section's "Open in campaign").
   const focusContactId = searchParams.get("contact");
   const settings = useSettings();
 
@@ -74,39 +90,62 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     [campaignId],
   );
   const templates = useLiveQuery(() => templatesRepo.all(), []) ?? [];
-  const sourceCategories = useLiveQuery(async () => {
-    const c = await campaignsRepo.get(campaignId);
-    if (!c?.categoryIds.length) return [];
-    const cats = await Promise.all(c.categoryIds.map((id) => categoriesRepo.get(id)));
-    return cats.filter((x): x is NonNullable<typeof x> => Boolean(x));
-  }, [campaignId]);
 
   const [index, setIndex] = React.useState(0);
-  // Whether the person currently in focus is already on the call list, so the
-  // "Add to call list" button can reflect state (Req 5).
-  const onCallList = useLiveQuery(async () => {
-    if (!messages || messages.length === 0) return false;
-    const cur = messages[Math.min(index, messages.length - 1)];
-    if (!cur) return false;
-    return Boolean(await callsRepo.get(cur.contactId));
-  }, [messages, index]);
-  // Transient "Adding…" state for the single call-view button so the tap feels
-  // responsive while the write lands and `onCallList` flips it to "Call view".
-  const [addingToCall, setAddingToCall] = React.useState(false);
 
-  const [reviewOpen, setReviewOpen] = React.useState(false);
-  const [reviewFilter, setReviewFilter] = React.useState<MessageStatus | "all">(
-    "all",
-  );
   const [manageOpen, setManageOpen] = React.useState(false);
   const [renaming, setRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState("");
   const [addTemplateOpen, setAddTemplateOpen] = React.useState(false);
+  const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
   const [addPeopleOpen, setAddPeopleOpen] = React.useState(false);
-  const [personMenuOpen, setPersonMenuOpen] = React.useState(false);
-  // The review-list row whose remove options are open (Req 1 follow-up).
-  const [reviewRemoveTarget, setReviewRemoveTarget] =
-    React.useState<CampaignMessage | null>(null);
+  // In-campaign search (Req #1): a lightweight sheet to find and jump to anyone,
+  // with a status filter so e.g. skipped people are easy to revisit.
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchStatus, setSearchStatus] = React.useState<MessageStatus | "all">(
+    "all",
+  );
+  // The anchored Delete menu on the action row (Req #6): one popup, the single
+  // place to drop a person from the queue or from contacts entirely.
+  const [deleteMenuOpen, setDeleteMenuOpen] = React.useState(false);
+
+  // Transient action feedback (Req #9): a brief floating pill confirming what
+  // just happened ("Sent to Alice", "Skipped Bob"), so an action never feels
+  // silent. Auto-clears.
+  const [feedback, setFeedback] = React.useState<{
+    text: string;
+    tone: "sent" | "skip" | "remove";
+  } | null>(null);
+  const feedbackTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = React.useCallback(
+    (text: string, tone: "sent" | "skip" | "remove") => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+      setFeedback({ text, tone });
+      feedbackTimer.current = setTimeout(() => setFeedback(null), 1700);
+    },
+    [],
+  );
+  React.useEffect(
+    () => () => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    },
+    [],
+  );
+
+  // --- Swipe state (Tinder-style, full content area) -----------------------
+  const [dragX, setDragX] = React.useState(0);
+  // A committed fling animation playing the card off-screen (to the left, the
+  // skip direction) before we advance.
+  const [exit, setExit] = React.useState<"left" | null>(null);
+  const drag = React.useRef<{
+    startX: number;
+    startY: number;
+    active: boolean;
+    axis: "h" | "v" | null;
+    crossed: boolean;
+  } | null>(null);
+
   const initialized = React.useRef(false);
   // The `?contact=` deep-link target we last jumped to (keyed on value, not
   // mount), so a changed target on a reused screen still re-focuses the queue.
@@ -116,11 +155,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     (id: string) => templates.find((t) => t.id === id)?.name ?? "Template",
     [templates],
   );
-
-  const openReview = (filter: MessageStatus | "all") => {
-    setReviewFilter(filter);
-    setReviewOpen(true);
-  };
 
   // Jump to a deep-linked contact whenever the `?contact=` target changes (not
   // just once per mount — Next.js can reuse this subtree across a soft
@@ -162,10 +196,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!messages) return;
     const current = messages[index];
     if (!current) return;
-    // The action buttons are HapticButtons, so the tap itself fires the tick.
     // Record the outcome for cross-day analytics (only the meaningful, terminal
-    // states — pending/needs_review are working states, not activity).
-    if (status === "sent" || status === "skipped" || status === "failed") {
+    // states the app still produces).
+    if (status === "sent" || status === "skipped") {
       eventsRepo.log(`message_${status}`, {
         ref: current.contactId,
         campaignId,
@@ -173,6 +206,8 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
       });
     }
     await campaignsRepo.setMessageStatus(current.id, status);
+    if (status === "sent") flash(`Sent to ${current.contactName}`, "sent");
+    else if (status === "skipped") flash(`Skipped ${current.contactName}`, "skip");
 
     // Advance to the next message that still needs attention; if none remain
     // ahead, just step forward so the user can review the tail.
@@ -193,8 +228,8 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
 
   // One-tap Refresh (Req #5): reconcile the contact set with its source AND
   // re-render every message from the current templates/contact data/settings,
-  // keeping progress. Replaces the old Pause/Resume control. Confirmed because it
-  // rewrites stored message text and can add/remove people.
+  // keeping progress. Confirmed because it rewrites stored message text and can
+  // add/remove people.
   const [refreshing, setRefreshing] = React.useState(false);
   const refreshAll = async () => {
     if (refreshing) return;
@@ -261,7 +296,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     setAddTemplateOpen(false);
   };
 
-  // Reset just the current person back to Pending (Req 2).
+  // Reset just the current person back to Pending.
   const resetCurrent = async () => {
     if (!messages) return;
     const current = messages[Math.min(index, messages.length - 1)];
@@ -274,19 +309,9 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     if (!messages) return;
     const current = messages[Math.min(index, messages.length - 1)];
     if (!current) return;
-    setPersonMenuOpen(false);
-    await campaignsRepo.removeMessage(campaignId, current.contactId);
-    setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
-  };
-
-  // Strip the current person from a source category (future lists exclude them)
-  // and drop them from this campaign's queue too.
-  const removeFromCategory = async (categoryId: string) => {
-    if (!messages) return;
-    const current = messages[Math.min(index, messages.length - 1)];
-    if (!current) return;
-    setPersonMenuOpen(false);
-    await contactsRepo.removeFromCategory([current.contactId], categoryId);
+    setDeleteMenuOpen(false);
+    haptic("warning");
+    flash(`Removed ${current.contactName} from campaign`, "remove");
     await campaignsRepo.removeMessage(campaignId, current.contactId);
     setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
   };
@@ -305,48 +330,26 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     ) {
       return;
     }
-    setPersonMenuOpen(false);
+    setDeleteMenuOpen(false);
     haptic("warning");
+    flash(`Removed ${current.contactName}`, "remove");
     await contactsRepo.remove([current.contactId]);
     await campaignsRepo.removeMessage(campaignId, current.contactId);
     setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
   };
 
-  // Add the person in focus to the call list, linking this campaign so its
-  // message shows up there as a talking point (Req 5). Idempotent. The call list
-  // (a live query) refreshes on its own, flipping the button to "Call view" and
-  // pre-warming the detail data so the follow-up open lands instantly.
-  const addCurrentToCallList = async () => {
-    if (!messages || addingToCall) return;
-    const cur = messages[Math.min(index, messages.length - 1)];
-    if (!cur) return;
-    haptic("light");
-    setAddingToCall(true);
-    try {
-      await callsRepo.addContacts([cur.contactId], [campaignId]);
-    } finally {
-      setAddingToCall(false);
-    }
-  };
-
-  // Jump from the campaign to this person's view in the Call section (Req #2).
-  // The button only enters this state once they're on the call list, but we
-  // guard with a silent add so a direct call still lands them there first.
-  const viewInCallList = async () => {
+  // Open this person's Call view screen (Req #1/#2). Ensures they're on
+  // the call list (linking this campaign as talking-point context), pins the
+  // queue to them, and deep-links the call screen with a return origin + nonce so
+  // the round-trip re-focuses this exact person. See [[campaign-call-deeplink]].
+  const openCallView = async () => {
     if (!messages) return;
     const cur = messages[Math.min(index, messages.length - 1)];
     if (!cur) return;
+    haptic("light");
     if (!(await callsRepo.get(cur.contactId))) {
       await callsRepo.addContacts([cur.contactId], [campaignId]);
     }
-    haptic("light");
-    // Pin the queue to this person so the position is coherent if we resume by
-    // index later, and carry the contact in the return origin so closing the
-    // call view brings the campaign back to THIS exact person (identity-stable),
-    // never whichever message the stored index happens to resolve to. The `t`
-    // nonce makes every tap a distinct deep link, so the Call screen reliably
-    // (re)opens THIS person even when Next.js reuses its cached subtree — the
-    // fix for "Call view shows the last person / won't reopen the same one".
     persistIndex(Math.min(index, messages.length - 1));
     const back = `/campaigns/${campaignId}?contact=${encodeURIComponent(cur.contactId)}`;
     const nonce = Date.now().toString(36);
@@ -355,41 +358,85 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     );
   };
 
-  // From the review list's remove options (Req 1): drop the person from this
-  // campaign's queue only — their group membership and contact record stay.
-  const removeReviewFromCampaign = async () => {
-    const target = reviewRemoveTarget;
-    if (!target || !messages) return;
-    setReviewRemoveTarget(null);
-    haptic("warning");
-    await campaignsRepo.removeMessage(campaignId, target.contactId);
-    setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
+  const openCurrentWhatsApp = () => {
+    if (!messages) return;
+    const cur = messages[Math.min(index, messages.length - 1)];
+    if (!cur) return;
+    openWhatsApp(cur.phone, cur.message, settings.whatsappApp);
   };
 
-  // From the review list's remove options (Req 1): remove the person as a contact
-  // entirely — hidden everywhere, skipped on future imports, dropped from here.
-  const removeReviewContactEntirely = async () => {
-    const target = reviewRemoveTarget;
-    if (!target || !messages) return;
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(
-        `Remove ${target.contactName} entirely? They'll be hidden from all lists and skipped on future imports. Restore from Settings → Removed contacts.`,
-      )
-    ) {
-      return;
+  // --- Swipe gestures (Req #9): left → Skip (fling-off), right → WhatsApp. ---
+  const onSwipePointerDown = (e: React.PointerEvent) => {
+    if (exit) return;
+    drag.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      active: true,
+      axis: null,
+      crossed: false,
+    };
+  };
+  const onSwipePointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d?.active) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (d.axis === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      // Lock to the dominant axis on first real movement so a vertical scroll is
+      // never hijacked into a swipe.
+      d.axis = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
     }
-    setReviewRemoveTarget(null);
-    haptic("warning");
-    await contactsRepo.remove([target.contactId]);
-    await campaignsRepo.removeMessage(campaignId, target.contactId);
-    setIndex((i) => Math.max(0, Math.min(i, messages.length - 2)));
+    if (d.axis !== "h") return;
+    setDragX(dx);
+    // A single tactile + once-only nudge the moment a direction "arms", so the
+    // user feels the commit point before lifting (works in an iOS PWA too).
+    const past = Math.abs(dx) > SWIPE_THRESHOLD;
+    if (past && !d.crossed) {
+      d.crossed = true;
+      haptic("light");
+    } else if (!past && d.crossed) {
+      d.crossed = false;
+    }
+  };
+  const endSwipe = () => {
+    const d = drag.current;
+    if (!d) return;
+    d.active = false;
+    if (d.axis === "h") {
+      if (dragX > SWIPE_THRESHOLD) {
+        // Right → Send message (WhatsApp). The card snaps back (the action opens
+        // WhatsApp over the app rather than dismissing the person).
+        haptic("success");
+        setDragX(0);
+        openCurrentWhatsApp();
+        return;
+      }
+      if (dragX < -SWIPE_THRESHOLD) {
+        // Left → Skip. Fling the card off, then advance to the next person.
+        haptic("warning");
+        setExit("left");
+        window.setTimeout(() => {
+          void mark("skipped");
+          setExit(null);
+          setDragX(0);
+        }, 200);
+        return;
+      }
+    }
+    setDragX(0);
   };
 
   const openManage = () => {
     setNameDraft(campaign?.name ?? "");
     setRenaming(false);
     setManageOpen(true);
+  };
+
+  // Inline rename straight from the header title (Req #4).
+  const startRename = () => {
+    setNameDraft(campaign?.name ?? "");
+    setRenaming(true);
   };
 
   const saveRename = async () => {
@@ -451,7 +498,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
   // back to wa.me on its own when a native app doesn't open).
   const waFallbackLink = buildWaLink(current.phone, current.message, "wa_me");
   const showFallback = settings.showWaMeFallback;
-  const statusMeta = STATUS_META[current.status];
   const isFinal =
     current.status === "sent" ||
     current.status === "skipped" ||
@@ -461,330 +507,481 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
     (t) => !campaign.templateIds.includes(t.id),
   );
 
-  // Per-status buckets shown as live stat chips in the header. Tapping any chip
-  // opens the review sheet filtered to that bucket so the user can see exactly
-  // who is in each (Sent / Pending / Review / Skipped / Failed).
-  const buckets: {
-    key: MessageStatus;
-    label: string;
-    count: number;
-    tone: string;
-  }[] = [
-    { key: "sent", label: "Sent", count: progress.sent, tone: "text-primary" },
-    {
-      key: "pending",
-      label: "Pending",
-      count: progress.pending,
-      tone: "text-foreground",
-    },
-    {
-      key: "needs_review",
-      label: "Review",
-      count: progress.needsReview,
-      tone: "text-amber-600",
-    },
-    {
-      key: "skipped",
-      label: "Skipped",
-      count: progress.skipped,
-      tone: "text-muted-foreground",
-    },
-    {
-      key: "failed",
-      label: "Failed",
-      count: progress.failed,
-      tone: "text-destructive",
-    },
-  ];
+  // Keep the campaign name on the controls row (Req #4) but shrink the type for
+  // longer names so it stays on one line and only ellipsises in the extreme.
+  const nameLen = campaign.name.length;
+  const nameSizeClass =
+    nameLen <= 16
+      ? "text-lg"
+      : nameLen <= 24
+        ? "text-base"
+        : nameLen <= 34
+          ? "text-sm"
+          : "text-xs";
 
-  const reviewList =
-    reviewFilter === "all"
-      ? messages
-      : messages.filter((m) => m.status === reviewFilter);
+  // The current person's status drives a colour accent on the preview card so
+  // the sent/skipped/pending state reads at a glance (Req #2).
+  const statusAccent =
+    current.status === "sent"
+      ? { ring: "ring-primary/40", badge: "bg-primary/12 text-primary", label: "Sent" }
+      : current.status === "skipped"
+        ? {
+            ring: "ring-border",
+            badge: "bg-secondary text-muted-foreground",
+            label: "Skipped",
+          }
+        : current.status === "failed"
+          ? {
+              ring: "ring-destructive/40",
+              badge: "bg-destructive/10 text-destructive",
+              label: "Failed",
+            }
+          : current.status === "needs_review"
+            ? {
+                ring: "ring-amber-400/50",
+                badge: "bg-amber-100 text-amber-700",
+                label: "Needs review",
+              }
+            : {
+                ring: "ring-hairline",
+                badge: "bg-secondary text-muted-foreground",
+                label: "Not sent yet",
+              };
+
+  // Search: filter by name/number AND by the chosen status. The status chips
+  // only surface buckets that actually have someone in them (so "Skipped" shows
+  // up exactly when there are skipped people to revisit — Req #3).
+  const q = searchQuery.trim().toLowerCase();
+  const statusChips = (
+    [
+      { key: "all", label: "All", count: messages.length },
+      { key: "pending", label: "Pending", count: progress.pending },
+      { key: "sent", label: "Sent", count: progress.sent },
+      { key: "skipped", label: "Skipped", count: progress.skipped },
+      { key: "needs_review", label: "Review", count: progress.needsReview },
+      { key: "failed", label: "Failed", count: progress.failed },
+    ] as { key: MessageStatus | "all"; label: string; count: number }[]
+  ).filter((c) => c.key === "all" || c.count > 0);
+  const searchResults = messages.filter((m) => {
+    if (searchStatus !== "all" && m.status !== searchStatus) return false;
+    if (!q) return true;
+    return (
+      m.contactName.toLowerCase().includes(q) ||
+      m.phone.toLowerCase().includes(q)
+    );
+  });
 
   const jumpTo = (message: CampaignMessage) => {
     const target = messages.findIndex((m) => m.id === message.id);
     if (target !== -1) goTo(target);
-    setReviewOpen(false);
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchStatus("all");
   };
+
+  // Swipe hint intensities + card transform. Drag LEFT (negative) = send
+  // message; drag RIGHT (positive) = skip.
+  const sendHint = Math.min(Math.max(-dragX, 0) / SWIPE_THRESHOLD, 1);
+  const skipHint = Math.min(Math.max(dragX, 0) / SWIPE_THRESHOLD, 1);
+  const cardStyle: React.CSSProperties = exit
+    ? {
+        transform: "translateX(-130%) rotate(-14deg)",
+        opacity: 0,
+        transition: "transform 0.22s ease-in, opacity 0.22s ease-in",
+      }
+    : {
+        transform: `translateX(${dragX}px) rotate(${dragX * 0.035}deg)`,
+        transition: dragX === 0 ? "transform 0.28s cubic-bezier(0.22,1,0.36,1)" : "none",
+      };
 
   return (
     <div className="flex h-dvh flex-col">
-      {/* Header with campaign progress */}
+      {/* Header — back, the campaign name (tap to rename), and the action icons
+          all share one row; the name auto-shrinks so it stays put (Req #4/#6). */}
       <header className="glass sticky top-0 z-30 border-b border-border/60 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/campaigns")}
-            aria-label="Back to campaigns"
-            className="-ml-2"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-semibold text-foreground">
-              {campaign.name}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {progress.processed} of {progress.total} done · {progress.percent}%
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshAll}
-            disabled={refreshing}
-            aria-label="Refresh contacts and messages"
-          >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            Refresh
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={openManage}
-            aria-label="Manage campaign"
-          >
-            <MoreVertical className="h-5 w-5" />
-          </Button>
-        </div>
-        <div className="mt-2">
-          <ProgressBar value={progress.fraction} />
-        </div>
-
-        {/* Live action stats — each chip opens the message list filtered to it. */}
-        <div className="no-scrollbar mt-2 flex gap-1.5 overflow-x-auto">
-          {buckets.map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              onClick={() => openReview(b.key)}
-              className="flex min-w-[58px] flex-1 flex-col items-center rounded-2xl bg-elevated px-2 py-2 ring-1 ring-inset ring-hairline transition-all hover:bg-secondary active:scale-[0.97]"
+        {renaming ? (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/campaigns")}
+              aria-label="Back to campaigns"
+              className="-ml-2"
             >
-              <span className={`text-base font-bold tabular-nums ${b.tone}`}>
-                {b.count}
-              </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {b.label}
-              </span>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <Input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              placeholder="Campaign name"
+              autoFocus
+              className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveRename();
+                if (e.key === "Escape") setRenaming(false);
+              }}
+              onBlur={() => void saveRename()}
+            />
+            <Button size="sm" onClick={saveRename}>
+              Save
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/campaigns")}
+              aria-label="Back to campaigns"
+              className="-ml-2"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <button
+              type="button"
+              onClick={startRename}
+              aria-label="Rename campaign"
+              className="flex min-w-0 flex-1 items-center gap-1 text-left"
+            >
+              <h1
+                className={cn(
+                  "truncate font-bold tracking-tight text-foreground",
+                  nameSizeClass,
+                )}
+              >
+                {campaign.name}
+              </h1>
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
-          ))}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setSearchQuery("");
+                setSearchStatus("all");
+                setSearchOpen(true);
+              }}
+              aria-label="Search this campaign"
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+            {/* Refresh — icon only, no label or button chrome (Req #5). */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={refreshAll}
+              disabled={refreshing}
+              aria-label="Refresh contacts and messages"
+            >
+              <RefreshCw className={cn("h-5 w-5", refreshing && "animate-spin")} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={openManage}
+              aria-label="Manage campaign"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+
+        {/* One consolidated progress line: sent, skipped, what's left, percent. */}
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          <span className="font-semibold text-primary">{progress.sent}</span> sent
+          {progress.skipped > 0 && (
+            <> · {progress.skipped} skipped</>
+          )}{" "}
+          · {progress.pending} left · {progress.percent}%
+        </p>
+
+        {/* Segmented progress (Req #5): green = sent, grey = skipped, the rest is
+            the unfilled track of people still pending. */}
+        <div
+          className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-secondary shadow-[inset_0_1px_2px_rgba(16,24,40,0.06)]"
+          role="progressbar"
+          aria-valuenow={progress.percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Sent progress"
+        >
+          <div
+            className="h-full bg-primary bg-gradient-to-b from-white/25 to-transparent transition-all duration-500 ease-out"
+            style={{ width: `${progress.percent}%` }}
+          />
+          <div
+            className="h-full bg-muted-foreground/35 transition-all duration-500 ease-out"
+            style={{ width: `${Math.round(progress.skippedFraction * 100)}%` }}
+          />
         </div>
       </header>
 
-      {/* Current message card */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium text-muted-foreground">
-            {index + 1} of {messages.length}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
-            {/* Per-person reset — only when this person is already processed. */}
-            {isFinal && (
-              <button
-                type="button"
-                onClick={resetCurrent}
-                className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-secondary/70"
-                aria-label="Reset this person to pending"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </button>
-            )}
+      {/* Scrollable body */}
+      <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
+        {/* Template picker — heading removed (Req #7); only shown when the
+            campaign carries more than one template. Tap a chip to re-render THIS
+            person's message from that template. Kept OUT of the swipe area so its
+            own horizontal scroll isn't hijacked. */}
+        {campaign.templateIds.length > 1 && (
+          <div className="no-scrollbar -my-1 mb-1 flex gap-1.5 overflow-x-auto px-0.5 py-1">
+            {campaign.templateIds.map((tid) => {
+              const active = current.templateId === tid;
+              const isPrimary = campaign.primaryTemplateId === tid;
+              return (
+                <button
+                  key={tid}
+                  type="button"
+                  onClick={() => switchTemplate(tid)}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
+                    active
+                      ? "bg-accent text-accent-foreground ring-1 ring-primary/30"
+                      : "bg-secondary text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {isPrimary && (
+                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                  )}
+                  <span className="max-w-[10rem] truncate">{templateName(tid)}</span>
+                  {active && <Check className="h-3.5 w-3.5 text-primary" />}
+                </button>
+              );
+            })}
             <button
               type="button"
-              onClick={() => setPersonMenuOpen(true)}
-              aria-label="Person options"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+              onClick={() => setAddTemplateOpen(true)}
+              className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
             >
-              <MoreVertical className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
+              Add
             </button>
-          </div>
-        </div>
-
-        {/* Template picker sits ABOVE the message so the action buttons below
-            stay at a constant position as you move between people (Req 2). Only
-            shown when the campaign carries more than one template — tap a chip to
-            re-render THIS person's message from that template. */}
-        {campaign.templateIds.length > 1 && (
-          <div className="mt-3">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Template for this person
-            </p>
-            {/* Vertical padding (with matching negative margin) gives the active
-                chip's ring room so it isn't clipped by the horizontal scroller. */}
-            <div className="no-scrollbar -my-1 flex gap-1.5 overflow-x-auto px-0.5 py-1">
-              {campaign.templateIds.map((tid) => {
-                const active = current.templateId === tid;
-                const isPrimary = campaign.primaryTemplateId === tid;
-                return (
-                  <button
-                    key={tid}
-                    type="button"
-                    onClick={() => switchTemplate(tid)}
-                    className={cn(
-                      "flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
-                      active
-                        ? "bg-accent text-accent-foreground ring-1 ring-primary/30"
-                        : "bg-secondary text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {isPrimary && (
-                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-                    )}
-                    <span className="max-w-[10rem] truncate">{templateName(tid)}</span>
-                    {active && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => setAddTemplateOpen(true)}
-                className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add
-              </button>
-            </div>
           </div>
         )}
         {campaign.templateIds.length <= 1 && (
           <button
             type="button"
             onClick={() => setAddTemplateOpen(true)}
-            className="mt-3 flex items-center gap-1 text-sm font-semibold text-primary"
+            className="flex items-center gap-1 text-sm font-semibold text-primary"
           >
             <Plus className="h-4 w-4" />
             Add another template
           </button>
         )}
 
-        <div className="mt-3 rounded-3xl border border-hairline bg-card p-4 shadow-card">
-          <p className="text-lg font-bold tracking-tight text-foreground">
-            {current.contactName}
-          </p>
-          <p className="text-sm text-muted-foreground">{current.phone}</p>
-          <div className="mt-3 rounded-2xl border border-border/60 bg-[#e6ddd3] p-3">
-            <div className="ml-auto max-w-[92%] rounded-2xl rounded-tr-md bg-[#dcf8c6] px-3.5 py-2.5 shadow-sm">
-              <ExpandableText
-                text={current.message}
-                lines={6}
-                className="text-[13px] leading-relaxed text-[#111b21]"
-                toggleClassName="text-[#075e54]"
-              />
+        {/* Swipe arena (Req #9): the whole region below the chips is draggable —
+            drag right for WhatsApp, left to Skip — with live directional hints,
+            so it feels like a card deck rather than a tiny target. */}
+        <div
+          className="relative mt-3 flex flex-1 select-none flex-col"
+          onPointerDown={onSwipePointerDown}
+          onPointerMove={onSwipePointerMove}
+          onPointerUp={endSwipe}
+          onPointerCancel={endSwipe}
+          onPointerLeave={() => {
+            if (drag.current?.active) endSwipe();
+          }}
+          style={{ touchAction: "pan-y" }}
+        >
+          {/* Directional hints revealed as the card slides off them: drag right to
+              send (left side lights up green), drag left to skip (right side). */}
+          <div className="pointer-events-none absolute inset-x-0 top-2 flex items-center justify-between px-2">
+            <span
+              className="flex items-center gap-1.5 rounded-full bg-[#25D366]/15 px-3 py-1.5 text-sm font-bold text-[#128C42]"
+              style={{ opacity: sendHint, transform: `scale(${0.85 + sendHint * 0.15})` }}
+            >
+              <WhatsAppIcon className="h-5 w-5" />
+              Send
+            </span>
+            <span
+              className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-bold text-muted-foreground"
+              style={{ opacity: skipHint, transform: `scale(${0.85 + skipHint * 0.15})` }}
+            >
+              Skip
+              <SkipForward className="h-5 w-5" />
+            </span>
+          </div>
+
+          <div
+            style={cardStyle}
+            className={cn(
+              "rounded-3xl bg-card p-4 shadow-card ring-1",
+              statusAccent.ring,
+            )}
+          >
+            {/* Name + number on the left, status badge on the right of the same
+                row (Req #4). */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold tracking-tight text-foreground">
+                  {current.contactName}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {current.phone}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
+                  statusAccent.badge,
+                )}
+              >
+                {statusAccent.label}
+              </span>
+            </div>
+            <div className="mt-3 rounded-2xl border border-border/60 bg-[#e6ddd3] p-3">
+              <div className="ml-auto max-w-[92%] rounded-2xl rounded-tr-md bg-[#dcf8c6] px-3.5 py-2.5 shadow-sm">
+                {/* Expanded text scrolls within itself so a long message never
+                    shoves the templates/actions around (Req #7). */}
+                <ExpandableText
+                  text={current.message}
+                  lines={6}
+                  className="text-[13px] leading-relaxed text-[#111b21]"
+                  expandedClassName="max-h-[34vh] overflow-y-auto"
+                  toggleClassName="text-[#075e54]"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* One smart call-view button, two states (Req 2):
-            • Not on the call list → an orange "Add to call view" call-to-action.
-              Tapping it adds THIS person (and links the campaign as a talking
-              point), the live call list refreshes, and the button flips below.
-            • On the call list → "Call view", which opens their call screen.
-            Keeping a single button always tied to the visible person means the
-            add and the open can never target two different people. */}
-        <div className="mt-3">
-          {onCallList ? (
-            <button
-              type="button"
-              onClick={viewInCallList}
-              aria-label="Open this person's call view"
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-hairline bg-card py-3 text-sm font-semibold text-foreground shadow-soft transition-colors hover:bg-secondary active:scale-[0.99]"
-            >
-              <PhoneForwarded className="h-4 w-4 text-primary" />
-              Call view
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={addCurrentToCallList}
-              disabled={addingToCall}
-              aria-label="Add this person to the call list"
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3 text-sm font-semibold text-white shadow-soft transition-colors hover:bg-orange-600 active:scale-[0.99] disabled:opacity-70"
-            >
-              {addingToCall ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Adding…
-                </>
-              ) : (
-                <>
-                  <Phone className="h-4 w-4" />
-                  Add to call view
-                </>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Secondary marks — compact, one row, out of the primary thumb path */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <HapticButton
-            variant="outline"
-            className="h-14 flex-col gap-1 text-xs"
-            onClick={() => mark("skipped")}
-          >
-            <SkipForward className="h-5 w-5" />
-            Skip
-          </HapticButton>
-          <HapticButton
-            variant="outline"
-            className="h-14 flex-col gap-1 text-xs"
-            onClick={() => mark("needs_review")}
-          >
-            <Eye className="h-5 w-5" />
-            Review
-          </HapticButton>
-          <HapticButton
-            variant="outline"
-            className="h-14 flex-col gap-1 text-xs"
-            onClick={() => mark("failed")}
-          >
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            Failed
-          </HapticButton>
+          {/* A subtle hint so swiping is discoverable on first use. */}
+          <p className="mt-3 text-center text-[11px] font-medium text-muted-foreground/70">
+            Swipe right to send message · left to skip
+          </p>
         </div>
       </div>
 
-      {/* Sticky primary actions, sized and lifted for easy thumb reach */}
-      <div className="glass sticky bottom-0 border-t border-border/60 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+1.75rem)]">
-        {/* Navigation row */}
-        <div className="mb-2.5 flex items-center justify-between">
+      {/* Sticky action stack, lifted for easy thumb reach. */}
+      <div className="glass sticky bottom-0 border-t border-border/60 px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+        {/* Transient action feedback (Req #9), floating just above the controls. */}
+        {feedback && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-none absolute -top-12 left-1/2 z-20 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-2 duration-200"
+          >
+            <span
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold text-white shadow-float",
+                feedback.tone === "sent" && "bg-primary",
+                feedback.tone === "skip" && "bg-foreground/80",
+                feedback.tone === "remove" && "bg-destructive",
+              )}
+            >
+              {feedback.tone === "sent" && <Check className="h-4 w-4" />}
+              {feedback.tone === "skip" && <SkipForward className="h-4 w-4" />}
+              {feedback.tone === "remove" && <Trash2 className="h-4 w-4" />}
+              {feedback.text}
+            </span>
+          </div>
+        )}
+
+        {/* Queue position, then one compact row of icon-only controls:
+            Prev · Delete · Call view · Skip · Next (Req #1/#2). */}
+        <p className="mb-1.5 text-center text-xs font-semibold tabular-nums text-muted-foreground">
+          {index + 1} / {messages.length}
+        </p>
+        <div className="mb-2.5 grid grid-cols-5 gap-2">
           <button
             type="button"
             onClick={() => goTo(index - 1)}
             disabled={index === 0}
-            className="flex h-10 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-muted-foreground hover:bg-secondary disabled:opacity-40"
+            aria-label="Previous person"
+            className="flex h-12 items-center justify-center rounded-2xl bg-secondary text-foreground transition-colors hover:bg-secondary/70 active:scale-95 disabled:opacity-40"
           >
             <ChevronLeft className="h-5 w-5" />
-            Prev
           </button>
-          <span className="text-sm font-medium text-muted-foreground">
-            {index + 1} / {messages.length}
-          </span>
+
+          <div className="relative">
+            <HapticButton
+              variant="outline"
+              haptic="light"
+              className="h-12 w-full"
+              onClick={() => setDeleteMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={deleteMenuOpen}
+              aria-label="Delete options"
+            >
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </HapticButton>
+            {deleteMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  onClick={() => setDeleteMenuOpen(false)}
+                  className="fixed inset-0 z-40 cursor-default"
+                />
+                <div
+                  role="menu"
+                  className="absolute bottom-full left-0 z-50 mb-2 w-60 overflow-hidden rounded-2xl border border-hairline bg-card p-1.5 shadow-float animate-in fade-in zoom-in-95 duration-150"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={removeFromCampaign}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-secondary"
+                  >
+                    <UserMinus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-foreground">
+                      Remove from campaign
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={removeContactEntirely}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-destructive/10"
+                  >
+                    <UserX className="h-4 w-4 shrink-0 text-destructive" />
+                    <span className="text-sm font-semibold text-destructive">
+                      Remove contact entirely
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Call icon — opens this person's Call view (Req #2), in caller green. */}
+          <HapticButton
+            variant="outline"
+            haptic="light"
+            className="h-12 w-full border-[#34C759]/45 hover:bg-[#34C759]/10"
+            onClick={openCallView}
+            aria-label={`Open call view for ${current.contactName}`}
+          >
+            <PhoneForwarded className="h-5 w-5 text-[#34C759]" />
+          </HapticButton>
+
+          <HapticButton
+            variant="outline"
+            className="h-12 w-full"
+            onClick={() => mark("skipped")}
+            aria-label="Skip"
+          >
+            <SkipForward className="h-5 w-5" />
+          </HapticButton>
+
           <button
             type="button"
             onClick={() => goTo(index + 1)}
             disabled={index >= messages.length - 1}
-            className="flex h-10 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-muted-foreground hover:bg-secondary disabled:opacity-40"
+            aria-label="Next person"
+            className="flex h-12 items-center justify-center rounded-2xl bg-secondary text-foreground transition-colors hover:bg-secondary/70 active:scale-95 disabled:opacity-40"
           >
-            Next
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Two large primary actions — the core send loop */}
+        {/* Two large primary actions — the core send loop. */}
         <div className="grid grid-cols-2 gap-3">
           <HapticButton
             className="h-14 w-full text-base"
             variant="outline"
-            onClick={() =>
-              openWhatsApp(current.phone, current.message, settings.whatsappApp)
-            }
+            onClick={openCurrentWhatsApp}
           >
-            <MessageCircle className="h-5 w-5 text-primary" />
+            <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
             WhatsApp
           </HapticButton>
           {isFinal ? (
@@ -825,55 +1022,53 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         )}
       </div>
 
+      {/* In-campaign search (Req #1 + #3): find anyone, filter by status (e.g.
+          revisit Skipped), tap to jump to them. */}
       <Sheet
-        open={reviewOpen}
-        onClose={() => setReviewOpen(false)}
-        title="Campaign messages"
-        description="Filter by outcome to see who's in each bucket. Tap one to jump to it."
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        title="Find someone"
+        description="Search or filter this campaign, then tap a result to jump to them."
       >
-        {/* Segmented filter across All + every status. */}
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search name or number"
+          autoFocus
+          className="mb-3"
+        />
         <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1">
-          {(
-            [
-              { key: "all", label: `All ${messages.length}` },
-              { key: "needs_review", label: `Review ${progress.needsReview}` },
-              { key: "skipped", label: `Skipped ${progress.skipped}` },
-              { key: "failed", label: `Failed ${progress.failed}` },
-              { key: "sent", label: `Sent ${progress.sent}` },
-              { key: "pending", label: `Pending ${progress.pending}` },
-            ] as { key: MessageStatus | "all"; label: string }[]
-          ).map((f) => (
+          {statusChips.map((c) => (
             <button
-              key={f.key}
+              key={c.key}
               type="button"
-              onClick={() => setReviewFilter(f.key)}
-              className={
-                "shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors " +
-                (reviewFilter === f.key
+              onClick={() => setSearchStatus(c.key)}
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
+                searchStatus === c.key
                   ? "bg-accent text-accent-foreground ring-1 ring-primary/30"
-                  : "bg-secondary text-muted-foreground hover:text-foreground")
-              }
+                  : "bg-secondary text-muted-foreground hover:text-foreground",
+              )}
             >
-              {f.label}
+              {c.label} {c.count}
             </button>
           ))}
         </div>
-
-        {reviewList.length === 0 ? (
+        {searchResults.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Nothing here.
+            No one matches.
           </p>
         ) : (
           <ul className="space-y-2">
-            {reviewList.map((m) => (
-              <li key={m.id} className="flex items-center gap-2">
+            {searchResults.map((m) => (
+              <li key={m.id}>
                 <button
                   type="button"
                   onClick={() => jumpTo(m)}
-                  className="flex flex-1 items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
+                  className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground line-clamp-2 [overflow-wrap:anywhere]">
+                    <p className="font-semibold text-foreground line-clamp-1 [overflow-wrap:anywhere]">
                       {m.contactName}
                     </p>
                     <p className="truncate text-sm text-muted-foreground">
@@ -884,19 +1079,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
                     {STATUS_META[m.status].label}
                   </Badge>
                 </button>
-                {/* Quick remove from the queue — offered for every bucket except
-                    Sent, where dropping a contact you've already messaged makes
-                    no sense (Req 1). */}
-                {m.status !== "sent" && (
-                  <button
-                    type="button"
-                    onClick={() => setReviewRemoveTarget(m)}
-                    aria-label={`Remove ${m.contactName}`}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive/10"
-                  >
-                    <CircleMinus className="h-5 w-5" />
-                  </button>
-                )}
               </li>
             ))}
           </ul>
@@ -913,41 +1095,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         description={campaign.name}
       >
         <div className="space-y-2">
-          {/* Rename */}
-          {renaming ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-hairline bg-card p-2">
-              <Input
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                placeholder="Campaign name"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void saveRename();
-                }}
-              />
-              <Button size="sm" onClick={saveRename}>
-                Save
-              </Button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setNameDraft(campaign.name);
-                setRenaming(true);
-              }}
-              className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
-            >
-              <Pencil className="h-5 w-5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold text-foreground">Rename</span>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {campaign.name}
-                </span>
-              </span>
-            </button>
-          )}
-
           {/* Regenerate message text */}
           <button
             type="button"
@@ -987,7 +1134,7 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
             </span>
           </button>
 
-          {/* Add people — manually drop contacts into this campaign (Req #3). */}
+          {/* Add people — manually drop contacts into this campaign. */}
           <button
             type="button"
             onClick={() => {
@@ -1043,38 +1190,53 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
         </div>
       </Sheet>
 
-      {/* Add a template to the campaign (from the per-person picker). */}
+      {/* Add a template to the campaign — always offers a way forward: pick an
+          existing one, or create a brand-new template right here (Req #5). */}
       <Sheet
         open={addTemplateOpen}
         onClose={() => setAddTemplateOpen(false)}
         title="Add a template"
-        description="Attach another template so you can switch a person's message to it."
       >
-        {attachableTemplates.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Every template is already attached. Create more from the Templates tab.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {attachableTemplates.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => attachTemplate(t.id)}
-                  className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
-                >
-                  <span className="truncate font-semibold text-foreground">
-                    {t.name}
-                  </span>
-                  <Plus className="h-4 w-4 shrink-0 text-primary" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="space-y-2">
+          {attachableTemplates.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                onClick={() => attachTemplate(t.id)}
+                className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-hairline bg-card p-3 text-left hover:bg-secondary"
+              >
+                <span className="truncate font-semibold text-foreground">
+                  {t.name}
+                </span>
+                <Plus className="h-4 w-4 shrink-0 text-primary" />
+              </button>
+            </li>
+          ))}
+          <li>
+            <button
+              type="button"
+              onClick={() => setCreateTemplateOpen(true)}
+              className="flex min-h-touch w-full items-center justify-between gap-2 rounded-2xl border border-primary/30 bg-accent p-3 text-left transition-colors hover:bg-accent/70"
+            >
+              <span className="truncate font-semibold text-foreground">
+                Create new template
+              </span>
+              <FilePlus2 className="h-4 w-4 shrink-0 text-primary" />
+            </button>
+          </li>
+        </ul>
       </Sheet>
 
-      {/* Manually add contacts to this campaign (Req #3). */}
+      {/* Create-template flow, embedded so the user never hits a dead end (Req
+          #5). On save the live templates query refreshes and the new one appears
+          in the list above, ready to attach. */}
+      <TemplateEditor
+        open={createTemplateOpen}
+        template={null}
+        onClose={() => setCreateTemplateOpen(false)}
+      />
+
+      {/* Manually add contacts to this campaign. */}
       <AddPeopleToCampaignSheet
         open={addPeopleOpen}
         campaignId={campaignId}
@@ -1089,122 +1251,6 @@ export function SendingQueue({ campaignId }: { campaignId: string }) {
           }
         }}
       />
-
-      {/* Remove options for a person tapped in the review list (Req 1): from this
-          campaign only, or as a contact everywhere. */}
-      <Sheet
-        open={reviewRemoveTarget !== null}
-        onClose={() => setReviewRemoveTarget(null)}
-        title={reviewRemoveTarget?.contactName ?? "Remove"}
-        description="Remove this person from this campaign, or from your contacts entirely."
-      >
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={removeReviewFromCampaign}
-            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
-          >
-            <UserMinus className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-foreground">
-                Remove from this campaign
-              </span>
-              <span className="block text-sm text-muted-foreground">
-                Drops them from this queue only. Keeps their contact and group
-                membership.
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={removeReviewContactEntirely}
-            className="flex w-full items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-left transition-colors hover:bg-destructive/10"
-          >
-            <UserX className="h-5 w-5 shrink-0 text-destructive" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-destructive">
-                Remove contact entirely
-              </span>
-              <span className="block text-sm text-muted-foreground">
-                Hides them everywhere and skips them on future imports. Restorable
-                from Settings → Removed contacts.
-              </span>
-            </span>
-          </button>
-        </div>
-      </Sheet>
-
-      {/* Per-person options — remove from the queue, or from a source group. */}
-      <Sheet
-        open={personMenuOpen}
-        onClose={() => setPersonMenuOpen(false)}
-        title={current.contactName}
-        description="Remove this person from the campaign, a source group, or your contacts entirely."
-      >
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={removeFromCampaign}
-            className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
-          >
-            <UserMinus className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-foreground">
-                Remove from this campaign
-              </span>
-              <span className="block text-sm text-muted-foreground">
-                Drops them from this queue only. Keeps their group membership.
-              </span>
-            </span>
-          </button>
-
-          {/* Remove as a contact entirely — the "no WhatsApp / wrong number" case. */}
-          <button
-            type="button"
-            onClick={removeContactEntirely}
-            className="flex w-full items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-left transition-colors hover:bg-destructive/10"
-          >
-            <UserX className="h-5 w-5 shrink-0 text-destructive" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-destructive">
-                Remove contact entirely
-              </span>
-              <span className="block text-sm text-muted-foreground">
-                No WhatsApp / wrong number. Hides them everywhere and skips them on
-                future imports. Restorable from Settings.
-              </span>
-            </span>
-          </button>
-
-          {(sourceCategories ?? []).map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => removeFromCategory(cat.id)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3 text-left transition-colors hover:bg-secondary"
-            >
-              <FolderMinus className="h-5 w-5 shrink-0 text-destructive" />
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold text-foreground">
-                  Remove from “{cat.name}”
-                </span>
-                <span className="block text-sm text-muted-foreground">
-                  Strips them from the group so future lists exclude them, and
-                  drops them from this queue.
-                </span>
-              </span>
-            </button>
-          ))}
-
-          {(sourceCategories ?? []).length === 0 && (
-            <p className="px-1 text-sm text-muted-foreground">
-              This campaign isn&apos;t tied to a group, so there&apos;s no category
-              to remove them from.
-            </p>
-          )}
-        </div>
-      </Sheet>
     </div>
   );
 }

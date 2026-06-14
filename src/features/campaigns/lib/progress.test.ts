@@ -34,8 +34,18 @@ describe("computeProgress", () => {
     expect(p.sent).toBe(2);
     expect(p.skipped).toBe(1);
     expect(p.processed).toBe(3);
-    expect(p.percent).toBe(75);
+    // Progress counts only sent (2 of 4 = 50%); the skipped one doesn't count.
+    expect(p.percent).toBe(50);
+    expect(p.skippedFraction).toBe(0.25);
     expect(p.complete).toBe(false);
+  });
+
+  it("never reads 100% when everyone was skipped", () => {
+    const p = computeProgress([msg(0, "skipped"), msg(1, "skipped")]);
+    expect(p.percent).toBe(0);
+    expect(p.skippedFraction).toBe(1);
+    // Still 'complete' — nothing is left pending — just not full progress.
+    expect(p.complete).toBe(true);
   });
 
   it("is complete when nothing remains pending or needs review", () => {
